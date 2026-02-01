@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
 
@@ -24,12 +25,11 @@ export default function ExploreScreen() {
 
     // --- Alarm State ---
     const [alarmTime, setAlarmTime] = useState(''); // HH:MM 24h format internally
+    const [isAlarmEnabled, setIsAlarmEnabled] = useState(false);
     const [isRepeating, setIsRepeating] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState('');
     const [isAlarmModalVisible, setIsAlarmModalVisible] = useState(false);
-    const [tempHours, setTempHours] = useState('');
-    const [tempMinutes, setTempMinutes] = useState('');
-    const [tempPeriod, setTempPeriod] = useState('AM');
+    const [tempDate, setTempDate] = useState(new Date());
     const [tempIsRepeating, setTempIsRepeating] = useState(false);
     const [sound, setSound] = useState(null);
     const [isAlarmTriggered, setIsAlarmTriggered] = useState(false);
@@ -141,7 +141,7 @@ export default function ExploreScreen() {
         const diffMs = target - now;
 
         // Trigger alarm if within 1.5 seconds and not already triggered
-        if (diffMs < 1500 && diffMs > 0 && !isAlarmTriggered) {
+        if (isAlarmEnabled && diffMs < 1500 && diffMs > 0 && !isAlarmTriggered) {
             console.log('TRIGGERING ALARM');
             setIsAlarmTriggered(true);
             playAlarmSound();
@@ -150,8 +150,9 @@ export default function ExploreScreen() {
         const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
         const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-        setTimeRemaining(`${diffHrs}h ${diffMins}m left`);
-    }, [alarmTime, isAlarmTriggered, sound, isRepeating]);
+        const enabledText = isAlarmEnabled ? '' : ' (Disabled)';
+        setTimeRemaining(`${diffHrs}h ${diffMins}m left${enabledText}`);
+    }, [alarmTime, isAlarmTriggered, sound, isRepeating, isAlarmEnabled]);
 
     useEffect(() => {
         calculateTimeRemaining();
@@ -180,27 +181,28 @@ export default function ExploreScreen() {
     };
 
     const handleSetAlarm = () => {
-        let h = parseInt(tempHours);
-        let m = parseInt(tempMinutes);
-
-        if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m < 0 || m > 59) {
-            Alert.alert('Invalid Time', 'Please enter a valid time (1-12 for hours, 0-59 for minutes)');
-            return;
-        }
-
-        // Convert to 24h for internal logic
-        let h24 = h;
-        if (tempPeriod === 'PM' && h < 12) h24 += 12;
-        if (tempPeriod === 'AM' && h === 12) h24 = 0;
+        const h24 = tempDate.getHours();
+        const m = tempDate.getMinutes();
 
         const timeStr = `${h24.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         setAlarmTime(timeStr);
         setIsRepeating(tempIsRepeating);
+        setIsAlarmEnabled(true);
         setIsAlarmTriggered(false);
         setIsAlarmModalVisible(false);
 
         // Schedule notification for background
         scheduleNotification(h24, m, tempIsRepeating);
+    };
+
+    const toggleAlarmStatus = async (value) => {
+        setIsAlarmEnabled(value);
+        if (value && alarmTime) {
+            const [h24, m] = alarmTime.split(':').map(Number);
+            await scheduleNotification(h24, m, isRepeating);
+        } else {
+            await Notifications.cancelAllScheduledNotificationsAsync();
+        }
     };
 
     const formatDisplayTime = (time) => {
@@ -227,17 +229,33 @@ export default function ExploreScreen() {
                         </View>
                         <View>
                             <Text style={styles.cardTitle}>Smart Alarm</Text>
-                            {isRepeating && <Text style={styles.repeatBadge}>Repeats Everyday</Text>}
+                            <View style={styles.badgeRow}>
+                                {isRepeating && <Text style={styles.repeatBadge}>Everyday</Text>}
+                            </View>
                         </View>
                     </View>
 
                     <View style={styles.alarmDisplay}>
-                        <Text style={styles.alarmValue}>
+                        <Text style={[styles.alarmValue, !isAlarmEnabled && styles.disabledValue]}>
                             {formatDisplayTime(alarmTime)}
                         </Text>
-                        <Text style={styles.remainingText}>
+                        <Text style={[styles.remainingText, !isAlarmEnabled && styles.disabledText]}>
                             {alarmTime ? timeRemaining : 'Set an alarm to see time left'}
                         </Text>
+                    </View>
+
+                    <View style={styles.statusRow}>
+                        <View style={styles.statusTextCol}>
+                            <Text style={styles.statusLabel}>Alarm Status</Text>
+                            <Text style={styles.statusValue}>{isAlarmEnabled ? 'Currently Active' : 'Currently Disabled'}</Text>
+                        </View>
+                        <Switch
+                            value={isAlarmEnabled}
+                            onValueChange={toggleAlarmStatus}
+                            trackColor={{ false: '#D1D5DB', true: '#6EE7B7' }}
+                            thumbColor={isAlarmEnabled ? '#10B981' : '#F3F4F6'}
+                            disabled={!alarmTime}
+                        />
                     </View>
 
                     <TouchableOpacity
@@ -245,16 +263,14 @@ export default function ExploreScreen() {
                         onPress={() => {
                             if (alarmTime) {
                                 let [h, m] = alarmTime.split(':').map(Number);
-                                const p = h >= 12 ? 'PM' : 'AM';
-                                h = h % 12 || 12;
-                                setTempHours(h.toString());
-                                setTempMinutes(m.toString().padStart(2, '0'));
-                                setTempPeriod(p);
+                                const d = new Date();
+                                d.setHours(h, m, 0, 0);
+                                setTempDate(d);
                                 setTempIsRepeating(isRepeating);
                             } else {
-                                setTempHours('');
-                                setTempMinutes('');
-                                setTempPeriod('AM');
+                                const d = new Date();
+                                d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5); // Round to nearest 5 mins for convenience
+                                setTempDate(d);
                                 setTempIsRepeating(false);
                             }
                             setIsAlarmModalVisible(true);
@@ -332,40 +348,18 @@ export default function ExploreScreen() {
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Set Alarm</Text>
 
-                        <View style={styles.timeInputRow}>
-                            <TextInput
-                                style={styles.timeInput}
-                                placeholder="00"
-                                placeholderTextColor="#9CA3AF"
-                                value={tempHours}
-                                onChangeText={setTempHours}
-                                keyboardType="number-pad"
-                                maxLength={2}
+                        <View style={styles.pickerContainer}>
+                            <DateTimePicker
+                                value={tempDate}
+                                mode="time"
+                                is24Hour={false}
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={(event, selectedDate) => {
+                                    if (selectedDate) setTempDate(selectedDate);
+                                }}
+                                textColor="#111827"
+                                style={styles.datePicker}
                             />
-                            <Text style={styles.timeSeparator}>:</Text>
-                            <TextInput
-                                style={styles.timeInput}
-                                placeholder="00"
-                                placeholderTextColor="#9CA3AF"
-                                value={tempMinutes}
-                                onChangeText={setTempMinutes}
-                                keyboardType="number-pad"
-                                maxLength={2}
-                            />
-                            <View style={styles.periodColumn}>
-                                <TouchableOpacity
-                                    style={[styles.periodButton, tempPeriod === 'AM' && styles.periodButtonActive]}
-                                    onPress={() => setTempPeriod('AM')}
-                                >
-                                    <Text style={[styles.periodText, tempPeriod === 'AM' && styles.periodTextActive]}>AM</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.periodButton, tempPeriod === 'PM' && styles.periodButtonActive]}
-                                    onPress={() => setTempPeriod('PM')}
-                                >
-                                    <Text style={[styles.periodText, tempPeriod === 'PM' && styles.periodTextActive]}>PM</Text>
-                                </TouchableOpacity>
-                            </View>
                         </View>
 
                         <View style={styles.repeatRow}>
@@ -487,24 +481,64 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 6,
+    },
+    badgeRow: {
+        flexDirection: 'row',
+        marginTop: 4,
+        gap: 8,
+    },
+    disabledBadge: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#6B7280',
+        backgroundColor: '#F3F4F6',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 20,
+    },
+    statusTextCol: {
+        flex: 1,
+    },
+    statusLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    statusValue: {
+        fontSize: 12,
+        color: '#6B7280',
         marginTop: 2,
-        alignSelf: 'flex-start',
     },
     alarmDisplay: {
         alignItems: 'center',
         marginBottom: 24,
     },
     alarmValue: {
-        fontSize: 48,
+        fontSize: width > 400 ? 56 : 48, // Responsive sizing
         fontWeight: '800',
         color: '#111827',
         letterSpacing: -1,
+    },
+    disabledValue: {
+        color: '#D1D5DB',
     },
     remainingText: {
         fontSize: 16,
         fontWeight: '600',
         color: '#10B981',
         marginTop: 4,
+    },
+    disabledText: {
+        color: '#9CA3AF',
     },
     setAlarmButton: {
         backgroundColor: '#10B981',
@@ -596,49 +630,15 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         textAlign: 'center',
     },
-    timeInputRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
+    pickerContainer: {
         alignItems: 'center',
-        marginBottom: 24,
+        justifyContent: 'center',
+        marginVertical: 10,
+        height: 200,
     },
-    timeInput: {
-        backgroundColor: '#F3F4F6',
-        width: 70,
-        height: 80,
-        borderRadius: 16,
-        fontSize: 32,
-        fontWeight: '800',
-        color: '#111827',
-        textAlign: 'center',
-    },
-    timeSeparator: {
-        fontSize: 32,
-        fontWeight: '800',
-        color: '#111827',
-        marginHorizontal: 8,
-    },
-    periodColumn: {
-        marginLeft: 16,
-        justifyContent: 'space-between',
-        height: 80,
-    },
-    periodButton: {
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    periodButtonActive: {
-        backgroundColor: '#10B981',
-    },
-    periodText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#6B7280',
-    },
-    periodTextActive: {
-        color: 'white',
+    datePicker: {
+        width: '100%',
+        height: '100%',
     },
     repeatRow: {
         flexDirection: 'row',

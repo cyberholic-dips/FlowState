@@ -38,10 +38,6 @@ export default function ExploreScreen() {
     const [sound, setSound] = useState(null);
     const [isAlarmTriggered, setIsAlarmTriggered] = useState(false);
 
-    // --- Quote State ---
-    const [quote, setQuote] = useState(null);
-    const [loadingQuote, setLoadingQuote] = useState(true);
-
     // --- Notes State ---
     const [notes, setNotes] = useState([]);
     const [noteInput, setNoteInput] = useState('');
@@ -63,9 +59,6 @@ export default function ExploreScreen() {
             // but for a true "alarm" experience, we rely on the foreground trigger as well
         });
 
-        // Fetch Quote
-        fetchQuote();
-
         return () => subscription.remove();
     }, []);
 
@@ -79,23 +72,6 @@ export default function ExploreScreen() {
     const loadNotes = async () => {
         const loadedNotes = await storage.getNotes();
         setNotes(loadedNotes);
-    };
-
-    const fetchQuote = async () => {
-        setLoadingQuote(true);
-        try {
-            const response = await fetch('https://zenquotes.io/api/today');
-            const data = await response.json();
-            if (data && data.length > 0) {
-                setQuote(data[0]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch quote", error);
-            // Fallback quote
-            setQuote({ q: "Success is not final, failure is not fatal: it is the courage to continue that counts.", a: "Winston Churchill" });
-        } finally {
-            setLoadingQuote(false);
-        }
     };
 
     const handleAddNote = async () => {
@@ -279,21 +255,6 @@ export default function ExploreScreen() {
                     <Text style={[styles.subtitle, { color: theme.subText }]}>Productivity tools for your journey</Text>
                 </View>
 
-                {/* Quote of the Day */}
-                <View style={[styles.quoteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                    <View style={styles.quoteIconContainer}>
-                        <Ionicons name="chatbox-ellipses-outline" size={32} color={theme.primary} />
-                    </View>
-                    {loadingQuote ? (
-                        <ActivityIndicator color={theme.primary} />
-                    ) : (
-                        <View>
-                            <Text style={[styles.quoteText, { color: theme.text }]}>"{quote?.q}"</Text>
-                            <Text style={[styles.quoteAuthor, { color: theme.primary }]}>— {quote?.a}</Text>
-                        </View>
-                    )}
-                </View>
-
                 {/* Alarm Section */}
                 <View style={[styles.sectionCard, styles.alarmCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                     <View style={styles.cardHeader}>
@@ -395,18 +356,26 @@ export default function ExploreScreen() {
 
                 {/* Notes Section */}
                 <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>My Notes</Text>
-                        <TouchableOpacity onPress={() => setIsNoteInputVisible(true)}>
-                            <Ionicons name="add-circle" size={32} color={theme.primary} />
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>My Notes</Text>
+
+                    {/* Add Note Trigger Card */}
+                    {!isNoteInputVisible && (
+                        <TouchableOpacity
+                            style={[styles.addNoteCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                            onPress={() => setIsNoteInputVisible(true)}
+                        >
+                            <View style={[styles.addNoteIcon, { backgroundColor: theme.input }]}>
+                                <Ionicons name="add" size={24} color={theme.primary} />
+                            </View>
+                            <Text style={[styles.addNoteText, { color: theme.subText }]}>Capture a thought...</Text>
                         </TouchableOpacity>
-                    </View>
+                    )}
 
                     {isNoteInputVisible && (
-                        <View style={[styles.noteInputContainer, { backgroundColor: theme.card }]}>
+                        <View style={[styles.noteInputContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                             <TextInput
                                 style={[styles.noteInput, { color: theme.text, backgroundColor: theme.input }]}
-                                placeholder="Write a note..."
+                                placeholder="What's on your mind?"
                                 placeholderTextColor={theme.subText}
                                 value={noteInput}
                                 onChangeText={setNoteInput}
@@ -415,30 +384,58 @@ export default function ExploreScreen() {
                             />
                             <View style={styles.noteInputButtons}>
                                 <TouchableOpacity onPress={() => setIsNoteInputVisible(false)} style={styles.noteCancelBtn}>
-                                    <Text style={{ color: theme.subText }}>Cancel</Text>
+                                    <Text style={{ color: theme.subText, fontWeight: '600' }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={handleAddNote} style={[styles.noteSaveBtn, { backgroundColor: theme.primary }]}>
-                                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Save</Text>
+                                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Save Note</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                     )}
 
-                    {notes.length === 0 ? (
-                        <Text style={[styles.emptyNotes, { color: theme.subText }]}>No notes yet. Tap + to add one.</Text>
-                    ) : (
-                        notes.map(note => (
-                            <View key={note.id} style={[styles.noteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                                <Text style={[styles.noteContent, { color: theme.text }]}>{note.content}</Text>
-                                <View style={styles.noteFooter}>
-                                    <Text style={[styles.noteDate, { color: theme.subText }]}>{new Date(note.createdAt).toLocaleDateString()}</Text>
-                                    <TouchableOpacity onPress={() => handleDeleteNote(note.id)}>
-                                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                                    </TouchableOpacity>
-                                </View>
+                    <View style={styles.notesGrid}>
+                        {notes.length === 0 && !isNoteInputVisible ? (
+                            <View style={styles.emptyStateContainer}>
+                                <Ionicons name="document-text-outline" size={48} color={theme.border} />
+                                <Text style={[styles.emptyNotes, { color: theme.subText }]}>Your notes will appear here</Text>
                             </View>
-                        ))
-                    )}
+                        ) : (
+                            notes.map((note, index) => {
+                                // Generate a deterministic color based on index or id for visual variety
+                                const noteColors = [
+                                    { bg: '#FEF3C7', text: '#92400E' }, // Amber
+                                    { bg: '#DBEAFE', text: '#1E40AF' }, // Blue
+                                    { bg: '#D1FAE5', text: '#065F46' }, // Emerald
+                                    { bg: '#FCE7F3', text: '#9D174D' }, // Pink
+                                    { bg: '#E0E7FF', text: '#3730A3' }, // Indigo
+                                ];
+                                // Use theme card color if dark mode, else use pastel
+                                const isDark = theme.mode === 'dark';
+                                const colorSet = noteColors[index % noteColors.length];
+                                const cardBg = isDark ? theme.card : colorSet.bg;
+                                const textColor = isDark ? theme.text : colorSet.text;
+                                const dateColor = isDark ? theme.subText : colorSet.text; // slightly lighter in real app, but this works
+
+                                return (
+                                    <View key={note.id} style={[styles.noteCard, { backgroundColor: cardBg, shadowColor: theme.shadow }]}>
+                                        <Text style={[styles.noteContent, { color: textColor }]}>{note.content}</Text>
+                                        <View style={[styles.noteDivider, { backgroundColor: isDark ? theme.border : 'rgba(0,0,0,0.05)' }]} />
+                                        <View style={styles.noteFooter}>
+                                            <Text style={[styles.noteDate, { color: dateColor, opacity: 0.8 }]}>
+                                                {new Date(note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={() => handleDeleteNote(note.id)}
+                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                            >
+                                                <Ionicons name="trash-outline" size={16} color={isDark ? '#EF4444' : textColor} style={{ opacity: 0.7 }} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
                 </View>
 
                 <View style={{ height: 40 }} />
@@ -550,30 +547,6 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 18,
         marginTop: 4,
-    },
-    quoteCard: {
-        padding: 24,
-        borderRadius: 24,
-        marginBottom: 24,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 3,
-    },
-    quoteIconContainer: {
-        marginBottom: 12,
-    },
-    quoteText: {
-        fontSize: 18,
-        fontStyle: 'italic',
-        fontWeight: '500',
-        marginBottom: 12,
-        lineHeight: 26,
-    },
-    quoteAuthor: {
-        fontSize: 14,
-        fontWeight: '700',
-        alignSelf: 'flex-end',
     },
     sectionCard: {
         borderRadius: 28,
@@ -812,12 +785,6 @@ const styles = StyleSheet.create({
     },
     section: {
         marginBottom: 32,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
     },
     sectionTitle: {
         fontSize: 20,

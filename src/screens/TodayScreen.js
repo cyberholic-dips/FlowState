@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -35,6 +35,10 @@ export default function TodayScreen() {
     const [isOptionsVisible, setIsOptionsVisible] = useState(false);
     const [selectedHabit, setSelectedHabit] = useState(null);
 
+    // Quote State
+    const [quote, setQuote] = useState(null);
+    const [loadingQuote, setLoadingQuote] = useState(true);
+
     const currentDateStr = today.toISOString().split('T')[0];
 
     const loadHabits = async () => {
@@ -55,12 +59,34 @@ export default function TodayScreen() {
         }
     };
 
+    // Fetch Quote
+    const fetchQuote = async () => {
+        setLoadingQuote(true);
+        try {
+            const response = await fetch('https://zenquotes.io/api/today');
+            const data = await response.json();
+            if (data && data.length > 0) {
+                setQuote(data[0]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch quote", error);
+            // Fallback quote
+            setQuote({ q: "Success is not final, failure is not fatal: it is the courage to continue that counts.", a: "Winston Churchill" });
+        } finally {
+            setLoadingQuote(false);
+        }
+    };
+
     useFocusEffect(
         useCallback(() => {
             loadHabits();
             setToday(new Date()); // Update date whenever screen comes into focus
         }, [])
     );
+
+    useEffect(() => {
+        fetchQuote();
+    }, []);
 
     const toggleHabit = async (id) => {
         const updatedHabits = await storage.toggleHabitCompletion(id);
@@ -166,6 +192,23 @@ export default function TodayScreen() {
 
                     <Text style={[styles.greeting, { color: theme.text }]}>Good morning, {userData.name}.</Text>
                     <Text style={[styles.subGreeting, { color: theme.subText }]}>Focus on your intentions for today.</Text>
+                </View>
+
+                {/* Quote of the Day */}
+                <View style={[styles.quoteContainer]}>
+                    <View style={[styles.quoteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                        {loadingQuote ? (
+                            <ActivityIndicator color={theme.primary} />
+                        ) : (
+                            <View>
+                                <View style={styles.quoteIconContainer}>
+                                    <Ionicons name="chatbox-ellipses-outline" size={20} color={theme.primary} />
+                                </View>
+                                <Text style={[styles.quoteText, { color: theme.text }]}>"{quote?.q}"</Text>
+                                <Text style={[styles.quoteAuthor, { color: theme.input === '#F3F4F6' ? theme.subText : theme.primary }]}>— {quote?.a}</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
 
                 {/* Week Calendar */}
@@ -322,13 +365,13 @@ const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 24,
         paddingTop: 20,
-        paddingBottom: 24,
+        paddingBottom: 16,
     },
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 32,
+        marginBottom: 24,
     },
     profileSection: {
         flexDirection: 'row',
@@ -378,6 +421,33 @@ const styles = StyleSheet.create({
     subGreeting: {
         fontSize: 18,
         marginTop: 4,
+    },
+    quoteContainer: {
+        paddingHorizontal: 24,
+        marginBottom: 24,
+    },
+    quoteCard: {
+        padding: 16,
+        borderRadius: 16,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    quoteIconContainer: {
+        marginBottom: 8,
+    },
+    quoteText: {
+        fontSize: 14,
+        fontStyle: 'italic',
+        fontWeight: '500',
+        marginBottom: 8,
+        lineHeight: 20,
+    },
+    quoteAuthor: {
+        fontSize: 12,
+        fontWeight: '700',
+        alignSelf: 'flex-end',
     },
     calendarStrip: {
         paddingHorizontal: 16,

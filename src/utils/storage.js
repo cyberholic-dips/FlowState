@@ -93,5 +93,81 @@ export const storage = {
         const updatedHabits = habits.filter(habit => habit.id !== habitId);
         await this.saveHabits(updatedHabits);
         return updatedHabits;
+    },
+
+    /**
+     * Get settings
+     */
+    async getSettings() {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@settings_data');
+            return jsonValue != null ? JSON.parse(jsonValue) : null;
+        } catch (e) {
+            console.error('Error reading settings', e);
+            return null;
+        }
+    },
+
+    /**
+     * Save settings
+     */
+    async saveSettings(settings) {
+        try {
+            const jsonValue = JSON.stringify(settings);
+            await AsyncStorage.setItem('@settings_data', jsonValue);
+        } catch (e) {
+            console.error('Error saving settings', e);
+        }
+    },
+
+    /**
+     * Get all notes
+     */
+    async getNotes() {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@notes_data');
+            return jsonValue != null ? JSON.parse(jsonValue) : [];
+        } catch (e) {
+            console.error('Error reading notes', e);
+            return [];
+        }
+    },
+
+    /**
+     * Save all notes
+     */
+    async saveNotes(notes) {
+        try {
+            const jsonValue = JSON.stringify(notes);
+            await AsyncStorage.setItem('@notes_data', jsonValue);
+        } catch (e) {
+            console.error('Error saving notes', e);
+        }
+    },
+
+    /**
+     * Add a new note
+     */
+    async addNote(noteContent) {
+        const notes = await this.getNotes();
+        const newNote = {
+            id: Date.now().toString(),
+            content: noteContent,
+            createdAt: new Date().toISOString(),
+        };
+        const newNotes = [newNote, ...notes];
+        await this.saveNotes(newNotes);
+        return newNotes;
+    },
+
+    /**
+     * Delete a note
+     */
+    async deleteNote(noteId) {
+        const notes = await this.getNotes();
+        const updatedNotes = notes.filter(note => note.id !== noteId);
+        await this.saveNotes(updatedNotes);
+        return updatedNotes;
     }
+
 };

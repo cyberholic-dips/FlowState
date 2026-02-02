@@ -11,15 +11,11 @@ import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
-// Custom colors matching the reference design
-const COLORS = {
-    primary: '#34D399',      // Green color for active state
-    inactive: '#9CA3AF',     // Gray color for inactive state
-    background: '#FFFFFF',   // White background
-    text: '#1F2937',         // Dark text
-};
+import { useTheme } from '../context/ThemeContext';
 
 export default function AppNavigator() {
+    const { theme } = useTheme();
+
     return (
         <NavigationContainer>
             <Tab.Navigator
@@ -40,10 +36,10 @@ export default function AppNavigator() {
 
                         return <Ionicons name={iconName} size={24} color={color} />;
                     },
-                    tabBarActiveTintColor: COLORS.primary,
-                    tabBarInactiveTintColor: COLORS.inactive,
+                    tabBarActiveTintColor: theme.primary,
+                    tabBarInactiveTintColor: theme.inactiveTint,
                     tabBarStyle: {
-                        backgroundColor: COLORS.background,
+                        backgroundColor: theme.tabBar,
                         borderTopWidth: 0,
                         elevation: 0,
                         shadowOpacity: 0,
@@ -62,8 +58,8 @@ export default function AppNavigator() {
                     },
                     // Add indicator bar at the top of active tab
                     tabBarBackground: () => (
-                        <View style={styles.tabBarBackground}>
-                            <View style={styles.topBorder} />
+                        <View style={[styles.tabBarBackground, { backgroundColor: theme.tabBar }]}>
+                            <View style={[styles.topBorder, { backgroundColor: theme.border }]} />
                         </View>
                     ),
                 })}
@@ -104,10 +100,8 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
     tabBarBackground: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
     topBorder: {
         height: 1,
-        backgroundColor: '#E5E7EB',
     },
 });

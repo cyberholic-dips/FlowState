@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +25,8 @@ const formatDate = (date) => {
 };
 
 export default function TodayScreen() {
+    const { theme } = useTheme();
+    const { userData } = useUser();
     const [habits, setHabits] = useState([]);
     const [today, setToday] = useState(new Date());
     const [isModalVisible, setIsModalVisible] = useState(false);
@@ -134,18 +138,22 @@ export default function TodayScreen() {
     const weekDays = getWeekDays();
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
                         <View style={styles.profileSection}>
-                            <View style={styles.avatar}>
-                                <Ionicons name="person" size={24} color="#34D399" />
+                            <View style={[styles.avatar, { borderColor: theme.border }]}>
+                                {userData.profileImage ? (
+                                    <Image source={userData.profileImage} style={styles.avatarImage} />
+                                ) : (
+                                    <Ionicons name="person" size={24} color={theme.primary} />
+                                )}
                             </View>
                             <View>
-                                <Text style={styles.dayLabel}>{today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()}</Text>
-                                <Text style={styles.dateLabel}>{formatDate(today)}</Text>
+                                <Text style={[styles.dayLabel, { color: theme.subText }]}>{today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()}</Text>
+                                <Text style={[styles.dateLabel, { color: theme.text }]}>{formatDate(today)}</Text>
                             </View>
                         </View>
                         <TouchableOpacity
@@ -156,22 +164,22 @@ export default function TodayScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.greeting}>Good morning, Alex.</Text>
-                    <Text style={styles.subGreeting}>Focus on your intentions for today.</Text>
+                    <Text style={[styles.greeting, { color: theme.text }]}>Good morning, {userData.name}.</Text>
+                    <Text style={[styles.subGreeting, { color: theme.subText }]}>Focus on your intentions for today.</Text>
                 </View>
 
                 {/* Week Calendar */}
                 <View style={styles.calendarStrip}>
-                    <View style={styles.weekContainer}>
+                    <View style={[styles.weekContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                         {weekDays.map((date, index) => {
                             const isToday = date.toDateString() === today.toDateString();
-                            const hasActivity = (index <= 3); // Simulated for design consistency
+                            const hasActivity = (index <= 3); // Simulated
                             return (
                                 <View key={index} style={styles.dayItem}>
-                                    <Text style={[styles.dayName, isToday && styles.activeDayText]}>{getDayName(date)}</Text>
-                                    <View style={[styles.dateCircle, isToday && styles.activeDateCircle]}>
-                                        <View style={[styles.dot, hasActivity && styles.greenDot]} />
-                                        <Text style={[styles.dateNumber, isToday && styles.activeDateNumber]}>{date.getDate()}</Text>
+                                    <Text style={[styles.dayName, { color: isToday ? theme.primary : theme.subText }]}>{getDayName(date)}</Text>
+                                    <View style={[styles.dateCircle, isToday && { backgroundColor: theme.primary }]}>
+                                        <View style={[styles.dot, hasActivity && { backgroundColor: isToday ? 'white' : theme.primary }]} />
+                                        <Text style={[styles.dateNumber, { color: isToday ? 'white' : theme.text }]}>{date.getDate()}</Text>
                                     </View>
                                 </View>
                             );
@@ -182,29 +190,29 @@ export default function TodayScreen() {
                 {/* Habits Section */}
                 <View style={styles.habitsSection}>
                     <View style={styles.habitsHeader}>
-                        <Text style={styles.sectionTitle}>Daily Habits</Text>
-                        <View style={styles.progressBadge}>
-                            <Text style={styles.progressText}>{completedCount} of {habits.length} done</Text>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Habits</Text>
+                        <View style={[styles.progressBadge, { backgroundColor: theme.tint + '20' }]}>
+                            <Text style={[styles.progressText, { color: theme.success }]}>{completedCount} of {habits.length} done</Text>
                         </View>
                     </View>
 
                     {habits.map((habit) => (
                         <TouchableOpacity
                             key={habit.id}
-                            style={styles.habitCard}
+                            style={[styles.habitCard, { backgroundColor: theme.card }]}
                             onPress={() => toggleHabit(habit.id)}
                             activeOpacity={0.7}
                         >
-                            <View style={[styles.checkCircle, isCompleted(habit) && styles.checkedCircle]}>
+                            <View style={[styles.checkCircle, { borderColor: theme.border }, isCompleted(habit) && { backgroundColor: '#3B82F6', borderColor: '#3B82F6' }]}>
                                 {isCompleted(habit) && <Ionicons name="checkmark" size={20} color="white" />}
                             </View>
                             <View style={styles.habitInfo}>
-                                <Text style={[styles.habitName, isCompleted(habit) && styles.completedHabitName]}>
+                                <Text style={[styles.habitName, { color: theme.text }, isCompleted(habit) && styles.completedHabitName]}>
                                     {habit.name}
                                 </Text>
                                 <View style={styles.streakInfo}>
-                                    <Ionicons name="flame" size={14} color="#F59E0B" />
-                                    <Text style={styles.streakText}>
+                                    <Ionicons name="flame" size={14} color={theme.warning} />
+                                    <Text style={[styles.streakText, { color: theme.subText }]}>
                                         {habit.streak > 0 ? `${habit.streak} day streak` : 'New habit'}
                                     </Text>
                                 </View>
@@ -213,7 +221,7 @@ export default function TodayScreen() {
                                 style={styles.menuButton}
                                 onPress={() => openOptions(habit)}
                             >
-                                <Ionicons name="ellipsis-vertical" size={20} color="#D1D5DB" />
+                                <Ionicons name="ellipsis-vertical" size={20} color={theme.inactiveTint} />
                             </TouchableOpacity>
                         </TouchableOpacity>
                     ))}
@@ -232,26 +240,26 @@ export default function TodayScreen() {
                     behavior={Platform.OS === "ios" ? "padding" : "height"}
                     style={styles.modalOverlay}
                 >
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{editingHabitId ? 'Edit Habit' : 'New Habit'}</Text>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>{editingHabitId ? 'Edit Habit' : 'New Habit'}</Text>
                             <TouchableOpacity onPress={closeHabitModal}>
-                                <Ionicons name="close" size={24} color="#374151" />
+                                <Ionicons name="close" size={24} color={theme.text} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.inputLabel}>{editingHabitId ? 'UPDATE YOUR INTENTION' : 'WHAT WOULD YOU LIKE TO START?'}</Text>
+                        <Text style={[styles.inputLabel, { color: theme.subText }]}>{editingHabitId ? 'UPDATE YOUR INTENTION' : 'WHAT WOULD YOU LIKE TO START?'}</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { backgroundColor: theme.input, color: theme.text }]}
                             placeholder="e.g. Morning Yoga, Read 10 Pages..."
-                            placeholderTextColor="#9CA3AF"
+                            placeholderTextColor={theme.subText}
                             value={newHabitName}
                             onChangeText={setNewHabitName}
                             autoFocus={true}
                         />
 
                         <TouchableOpacity
-                            style={[styles.createButton, !newHabitName.trim() && styles.createButtonDisabled]}
+                            style={[styles.createButton, { backgroundColor: theme.primary }, !newHabitName.trim() && styles.createButtonDisabled]}
                             onPress={handleAddOrUpdateHabit}
                             disabled={!newHabitName.trim()}
                         >
@@ -273,32 +281,32 @@ export default function TodayScreen() {
                     activeOpacity={1}
                     onPress={() => setIsOptionsVisible(false)}
                 >
-                    <View style={styles.optionsContent}>
-                        <View style={styles.optionsHeader}>
-                            <Text style={styles.optionsTitle}>{selectedHabit?.name}</Text>
+                    <View style={[styles.optionsContent, { backgroundColor: theme.card }]}>
+                        <View style={[styles.optionsHeader, { borderBottomColor: theme.border }]}>
+                            <Text style={[styles.optionsTitle, { color: theme.text }]}>{selectedHabit?.name}</Text>
                         </View>
 
                         <TouchableOpacity
                             style={styles.optionItem}
                             onPress={() => openEditModal(selectedHabit)}
                         >
-                            <Ionicons name="pencil-outline" size={20} color="#4B5563" />
-                            <Text style={styles.optionText}>Edit Habit</Text>
+                            <Ionicons name="pencil-outline" size={20} color={theme.subText} />
+                            <Text style={[styles.optionText, { color: theme.subText }]}>Edit Habit</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             style={[styles.optionItem, styles.deleteOption]}
                             onPress={() => handleDeleteHabit(selectedHabit?.id)}
                         >
-                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                            <Text style={[styles.optionText, styles.deleteText]}>Delete Habit</Text>
+                            <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                            <Text style={[styles.optionText, { color: theme.danger }]}>Delete Habit</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={styles.cancelOption}
+                            style={[styles.cancelOption, { borderTopColor: theme.border }]}
                             onPress={() => setIsOptionsVisible(false)}
                         >
-                            <Text style={styles.cancelText}>Cancel</Text>
+                            <Text style={[styles.cancelText, { color: theme.subText }]}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
@@ -310,7 +318,6 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
     header: {
         paddingHorizontal: 24,
@@ -335,17 +342,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
     },
     dayLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#9CA3AF',
         textTransform: 'uppercase',
     },
     dateLabel: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#1A1A1A',
     },
     addButton: {
         width: 44,
@@ -363,12 +373,10 @@ const styles = StyleSheet.create({
     greeting: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#111827',
         letterSpacing: -0.5,
     },
     subGreeting: {
         fontSize: 18,
-        color: '#6B7280',
         marginTop: 4,
     },
     calendarStrip: {
@@ -378,10 +386,8 @@ const styles = StyleSheet.create({
     weekContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        backgroundColor: 'white',
         padding: 16,
         borderRadius: 24,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
@@ -393,11 +399,7 @@ const styles = StyleSheet.create({
     dayName: {
         fontSize: 10,
         fontWeight: '600',
-        color: '#9CA3AF',
         marginBottom: 8,
-    },
-    activeDayText: {
-        color: '#10B981',
     },
     dateCircle: {
         width: 36,
@@ -406,16 +408,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    activeDateCircle: {
-        backgroundColor: '#10B981',
-    },
     dateNumber: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#4B5563',
-    },
-    activeDateNumber: {
-        color: 'white',
     },
     dot: {
         width: 4,
@@ -423,9 +418,6 @@ const styles = StyleSheet.create({
         borderRadius: 2,
         backgroundColor: 'transparent',
         marginBottom: 2,
-    },
-    greenDot: {
-        backgroundColor: '#10B981',
     },
     habitsSection: {
         paddingHorizontal: 24,
@@ -439,10 +431,8 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#111827',
     },
     progressBadge: {
-        backgroundColor: '#D1FAE5',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -450,12 +440,10 @@ const styles = StyleSheet.create({
     progressText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#059669',
     },
     habitCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'white',
         padding: 16,
         borderRadius: 20,
         marginBottom: 16,
@@ -470,14 +458,9 @@ const styles = StyleSheet.create({
         height: 28,
         borderRadius: 14,
         borderWidth: 2,
-        borderColor: '#E5E7EB',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
-    },
-    checkedCircle: {
-        backgroundColor: '#3B82F6',
-        borderColor: '#3B82F6',
     },
     habitInfo: {
         flex: 1,
@@ -485,11 +468,10 @@ const styles = StyleSheet.create({
     habitName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#374151',
         marginBottom: 4,
     },
     completedHabitName: {
-        color: '#9CA3AF',
+        opacity: 0.5,
         textDecorationLine: 'line-through',
     },
     streakInfo: {
@@ -498,7 +480,6 @@ const styles = StyleSheet.create({
     },
     streakText: {
         fontSize: 12,
-        color: '#9CA3AF',
         marginLeft: 4,
     },
     menuButton: {
@@ -511,7 +492,6 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: 'white',
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
         padding: 24,
@@ -526,31 +506,26 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#111827',
     },
     inputLabel: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#9CA3AF',
         letterSpacing: 1,
         marginBottom: 12,
     },
     input: {
-        backgroundColor: '#F3F4F6',
         borderRadius: 16,
         padding: 16,
         fontSize: 16,
-        color: '#111827',
         marginBottom: 24,
     },
     createButton: {
-        backgroundColor: '#10B981',
         borderRadius: 16,
         padding: 16,
         alignItems: 'center',
     },
     createButtonDisabled: {
-        backgroundColor: '#D1FAE5',
+        opacity: 0.5,
     },
     createButtonText: {
         color: 'white',
@@ -566,7 +541,6 @@ const styles = StyleSheet.create({
     },
     optionsContent: {
         width: '100%',
-        backgroundColor: 'white',
         borderRadius: 24,
         padding: 24,
         shadowColor: '#000',
@@ -579,12 +553,10 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         paddingBottom: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
     },
     optionsTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#111827',
         textAlign: 'center',
     },
     optionItem: {
@@ -595,25 +567,19 @@ const styles = StyleSheet.create({
     optionText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#4B5563',
         marginLeft: 12,
     },
     deleteOption: {
         marginTop: 4,
     },
-    deleteText: {
-        color: '#EF4444',
-    },
     cancelOption: {
         marginTop: 15,
         paddingTop: 15,
         borderTopWidth: 1,
-        borderTopColor: '#F3F4F6',
         alignItems: 'center',
     },
     cancelText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#9CA3AF',
     },
 });

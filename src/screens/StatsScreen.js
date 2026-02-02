@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, Dimensions, Touchable
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,7 @@ const getLastSevenDays = () => {
 };
 
 export default function StatsScreen() {
+    const { theme } = useTheme();
     const [habits, setHabits] = useState([]);
     const [weeklyData, setWeeklyData] = useState([]);
     const [stats, setStats] = useState({
@@ -81,20 +83,20 @@ export default function StatsScreen() {
     );
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Statistics</Text>
-                    <Text style={styles.subtitle}>Your consistency journey</Text>
+                    <Text style={[styles.title, { color: theme.text }]}>Statistics</Text>
+                    <Text style={[styles.subtitle, { color: theme.subText }]}>Your consistency journey</Text>
                 </View>
 
                 {/* Main Highlight Card */}
-                <View style={styles.highlightCard}>
+                <View style={[styles.highlightCard, { backgroundColor: theme.primary, shadowColor: theme.primary }]}>
                     <View style={styles.highlightInfo}>
-                        <Text style={styles.highlightLabel}>Total Completion</Text>
+                        <Text style={[styles.highlightLabel, { color: '#E5E7EB' }]}>Total Completion</Text>
                         <Text style={styles.highlightValue}>{stats.totalCompletion}%</Text>
                         <Text style={styles.highlightTrend}>
-                            <Ionicons name="trending-up" size={16} color="#34D399" />
+                            <Ionicons name="trending-up" size={16} color="white" />
                             <Text style={styles.trendText}> +12% from last week</Text>
                         </Text>
                     </View>
@@ -105,19 +107,19 @@ export default function StatsScreen() {
 
                 {/* Weekly Activity Graph */}
                 <View style={styles.chartSection}>
-                    <Text style={styles.sectionTitle}>Weekly Activity</Text>
-                    <View style={styles.chartContainer}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Activity</Text>
+                    <View style={[styles.chartContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                         {weeklyData.map((day, index) => (
                             <View key={index} style={styles.barWrapper}>
-                                <View style={styles.barBackground}>
+                                <View style={[styles.barBackground, { backgroundColor: theme.input }]}>
                                     <View
                                         style={[
                                             styles.barFill,
-                                            { height: `${Math.max(5, day.percentage * 100)}%` }
+                                            { height: `${Math.max(5, day.percentage * 100)}%`, backgroundColor: theme.primary }
                                         ]}
                                     />
                                 </View>
-                                <Text style={styles.barLabel}>{day.dayName}</Text>
+                                <Text style={[styles.barLabel, { color: theme.subText }]}>{day.dayName}</Text>
                             </View>
                         ))}
                     </View>
@@ -125,38 +127,38 @@ export default function StatsScreen() {
 
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
-                    <View style={styles.statsCard}>
+                    <View style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                         <View style={[styles.iconBox, { backgroundColor: '#DBEAFE' }]}>
                             <Ionicons name="flame" size={20} color="#3B82F6" />
                         </View>
-                        <Text style={styles.statsValue}>{stats.bestStreak}</Text>
-                        <Text style={styles.statsLabel}>Best Streak</Text>
+                        <Text style={[styles.statsValue, { color: theme.text }]}>{stats.bestStreak}</Text>
+                        <Text style={[styles.statsLabel, { color: theme.subText }]}>Best Streak</Text>
                     </View>
-                    <View style={styles.statsCard}>
+                    <View style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                         <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
                             <Ionicons name="list" size={20} color="#F59E0B" />
                         </View>
-                        <Text style={styles.statsValue}>{stats.activeHabits}</Text>
-                        <Text style={styles.statsLabel}>Active Habits</Text>
+                        <Text style={[styles.statsValue, { color: theme.text }]}>{stats.activeHabits}</Text>
+                        <Text style={[styles.statsLabel, { color: theme.subText }]}>Active Habits</Text>
                     </View>
                 </View>
 
                 {/* Habit Breakdown */}
                 <View style={styles.breakdownSection}>
-                    <Text style={styles.sectionTitle}>Habit Breakdown</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Habit Breakdown</Text>
                     {habits.map(habit => (
-                        <View key={habit.id} style={styles.breakdownItem}>
+                        <View key={habit.id} style={[styles.breakdownItem, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                             <View style={styles.breakdownHeader}>
-                                <Text style={styles.breakdownName}>{habit.name}</Text>
-                                <Text style={styles.breakdownPercent}>
+                                <Text style={[styles.breakdownName, { color: theme.text }]}>{habit.name}</Text>
+                                <Text style={[styles.breakdownPercent, { color: theme.primary }]}>
                                     {habit.streak} day streak
                                 </Text>
                             </View>
-                            <View style={styles.progressTrack}>
+                            <View style={[styles.progressTrack, { backgroundColor: theme.input }]}>
                                 <View
                                     style={[
                                         styles.progressFill,
-                                        { width: `${Math.min(100, (habit.streak / 30) * 100)}%` }
+                                        { width: `${Math.min(100, (habit.streak / 30) * 100)}%`, backgroundColor: theme.primary }
                                     ]}
                                 />
                             </View>
@@ -172,7 +174,6 @@ export default function StatsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
     scrollContent: {
         paddingHorizontal: 24,
@@ -184,30 +185,25 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#111827',
         letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: 18,
-        color: '#6B7280',
         marginTop: 4,
     },
     highlightCard: {
-        backgroundColor: '#10B981',
         borderRadius: 24,
         padding: 24,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 32,
-        shadowColor: '#10B981',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2,
         shadowRadius: 15,
         elevation: 8,
     },
     highlightLabel: {
-        color: '#D1FAE5',
         fontSize: 14,
         fontWeight: '600',
         marginBottom: 4,
@@ -233,18 +229,15 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#111827',
         marginBottom: 20,
     },
     chartContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        backgroundColor: 'white',
         padding: 24,
         borderRadius: 24,
         height: 200,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
@@ -257,20 +250,17 @@ const styles = StyleSheet.create({
     barBackground: {
         width: 12,
         height: 120,
-        backgroundColor: '#F3F4F6',
         borderRadius: 6,
         justifyContent: 'flex-end',
         marginBottom: 12,
     },
     barFill: {
         width: '100%',
-        backgroundColor: '#10B981',
         borderRadius: 6,
     },
     barLabel: {
         fontSize: 10,
         fontWeight: '600',
-        color: '#9CA3AF',
     },
     statsGrid: {
         flexDirection: 'row',
@@ -278,11 +268,9 @@ const styles = StyleSheet.create({
         marginBottom: 32,
     },
     statsCard: {
-        backgroundColor: 'white',
         borderRadius: 24,
         padding: 20,
         width: (width - 64) / 2,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
@@ -299,23 +287,19 @@ const styles = StyleSheet.create({
     statsValue: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#111827',
         marginBottom: 4,
     },
     statsLabel: {
         fontSize: 14,
-        color: '#6B7280',
         fontWeight: '500',
     },
     breakdownSection: {
         marginBottom: 20,
     },
     breakdownItem: {
-        backgroundColor: 'white',
         borderRadius: 20,
         padding: 20,
         marginBottom: 16,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
         shadowRadius: 8,
@@ -330,22 +314,18 @@ const styles = StyleSheet.create({
     breakdownName: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#111827',
     },
     breakdownPercent: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#10B981',
     },
     progressTrack: {
         height: 8,
-        backgroundColor: '#F3F4F6',
         borderRadius: 4,
         overflow: 'hidden',
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#10B981',
         borderRadius: 4,
     },
 });

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, TextInput, KeyboardAvoidingView, Platform, Modal, Alert, Switch, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTheme } from '../context/ThemeContext';
+import { storage } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -18,6 +20,8 @@ Notifications.setNotificationHandler({
 });
 
 export default function ExploreScreen() {
+    const { theme } = useTheme();
+
     // --- Stopwatch State ---
     const [stopwatchTime, setStopwatchTime] = useState(0);
     const [isStopwatchRunning, setIsStopwatchRunning] = useState(false);
@@ -33,6 +37,15 @@ export default function ExploreScreen() {
     const [tempIsRepeating, setTempIsRepeating] = useState(false);
     const [sound, setSound] = useState(null);
     const [isAlarmTriggered, setIsAlarmTriggered] = useState(false);
+
+    // --- Quote State ---
+    const [quote, setQuote] = useState(null);
+    const [loadingQuote, setLoadingQuote] = useState(true);
+
+    // --- Notes State ---
+    const [notes, setNotes] = useState([]);
+    const [noteInput, setNoteInput] = useState('');
+    const [isNoteInputVisible, setIsNoteInputVisible] = useState(false);
 
     // --- Permissions & Initialization ---
     useEffect(() => {
@@ -50,8 +63,53 @@ export default function ExploreScreen() {
             // but for a true "alarm" experience, we rely on the foreground trigger as well
         });
 
+        // Fetch Quote
+        fetchQuote();
+
         return () => subscription.remove();
     }, []);
+
+    // Load Notes on Focus
+    useFocusEffect(
+        useCallback(() => {
+            loadNotes();
+        }, [])
+    );
+
+    const loadNotes = async () => {
+        const loadedNotes = await storage.getNotes();
+        setNotes(loadedNotes);
+    };
+
+    const fetchQuote = async () => {
+        setLoadingQuote(true);
+        try {
+            const response = await fetch('https://zenquotes.io/api/today');
+            const data = await response.json();
+            if (data && data.length > 0) {
+                setQuote(data[0]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch quote", error);
+            // Fallback quote
+            setQuote({ q: "Success is not final, failure is not fatal: it is the courage to continue that counts.", a: "Winston Churchill" });
+        } finally {
+            setLoadingQuote(false);
+        }
+    };
+
+    const handleAddNote = async () => {
+        if (!noteInput.trim()) return;
+        const updatedNotes = await storage.addNote(noteInput);
+        setNotes(updatedNotes);
+        setNoteInput('');
+        setIsNoteInputVisible(false);
+    };
+
+    const handleDeleteNote = async (id) => {
+        const updatedNotes = await storage.deleteNote(id);
+        setNotes(updatedNotes);
+    };
 
     // --- Stopwatch Logic ---
     useEffect(() => {
@@ -214,29 +272,44 @@ export default function ExploreScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Explore</Text>
-                    <Text style={styles.subtitle}>Productivity tools for your journey</Text>
+                    <Text style={[styles.title, { color: theme.text }]}>Explore</Text>
+                    <Text style={[styles.subtitle, { color: theme.subText }]}>Productivity tools for your journey</Text>
+                </View>
+
+                {/* Quote of the Day */}
+                <View style={[styles.quoteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                    <View style={styles.quoteIconContainer}>
+                        <Ionicons name="chatbox-ellipses-outline" size={32} color={theme.primary} />
+                    </View>
+                    {loadingQuote ? (
+                        <ActivityIndicator color={theme.primary} />
+                    ) : (
+                        <View>
+                            <Text style={[styles.quoteText, { color: theme.text }]}>"{quote?.q}"</Text>
+                            <Text style={[styles.quoteAuthor, { color: theme.primary }]}>— {quote?.a}</Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Alarm Section */}
-                <View style={[styles.sectionCard, styles.alarmCard]}>
+                <View style={[styles.sectionCard, styles.alarmCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                     <View style={styles.cardHeader}>
-                        <View style={styles.iconBox}>
+                        <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
                             <Ionicons name="alarm-outline" size={28} color="#10B981" />
                         </View>
                         <View>
-                            <Text style={styles.cardTitle}>Smart Alarm</Text>
+                            <Text style={[styles.cardTitle, { color: theme.text }]}>Smart Alarm</Text>
                             <View style={styles.badgeRow}>
-                                {isRepeating && <Text style={styles.repeatBadge}>Everyday</Text>}
+                                {isRepeating && <Text style={[styles.repeatBadge, { backgroundColor: theme.tint + '20', color: theme.success }]}>Everyday</Text>}
                             </View>
                         </View>
                     </View>
 
                     <View style={styles.alarmDisplay}>
-                        <Text style={[styles.alarmValue, !isAlarmEnabled && styles.disabledValue]}>
+                        <Text style={[styles.alarmValue, { color: theme.text }, !isAlarmEnabled && styles.disabledValue]}>
                             {formatDisplayTime(alarmTime)}
                         </Text>
                         <Text style={[styles.remainingText, !isAlarmEnabled && styles.disabledText]}>
@@ -244,9 +317,9 @@ export default function ExploreScreen() {
                         </Text>
                     </View>
 
-                    <View style={styles.statusRow}>
+                    <View style={[styles.statusRow, { backgroundColor: theme.input }]}>
                         <View style={styles.statusTextCol}>
-                            <Text style={styles.statusLabel}>Alarm Status</Text>
+                            <Text style={[styles.statusLabel, { color: theme.text }]}>Alarm Status</Text>
                             <Text style={styles.statusValue}>{isAlarmEnabled ? 'Currently Active' : 'Currently Disabled'}</Text>
                         </View>
                         <Switch
@@ -281,24 +354,24 @@ export default function ExploreScreen() {
                 </View>
 
                 {/* Stopwatch Section */}
-                <View style={[styles.sectionCard, styles.stopwatchCard]}>
+                <View style={[styles.sectionCard, styles.stopwatchCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                     <View style={styles.cardHeader}>
-                        <View style={styles.iconBox}>
+                        <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
                             <Ionicons name="stopwatch-outline" size={28} color="#3B82F6" />
                         </View>
-                        <Text style={styles.cardTitle}>Stopwatch</Text>
+                        <Text style={[styles.cardTitle, { color: theme.text }]}>Stopwatch</Text>
                     </View>
 
                     <View style={styles.timerDisplay}>
-                        <Text style={styles.timerValue}>{formatStopwatchTime(stopwatchTime)}</Text>
+                        <Text style={[styles.timerValue, { color: theme.text }]}>{formatStopwatchTime(stopwatchTime)}</Text>
                     </View>
 
                     <View style={styles.controlRow}>
                         <TouchableOpacity
-                            style={[styles.controlButton, styles.resetButton]}
+                            style={[styles.controlButton, styles.resetButton, { backgroundColor: theme.input }]}
                             onPress={resetStopwatch}
                         >
-                            <Text style={styles.resetButtonText}>Reset</Text>
+                            <Text style={[styles.resetButtonText, { color: theme.text }]}>Reset</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -320,15 +393,52 @@ export default function ExploreScreen() {
                     </View>
                 </View>
 
-                <View style={styles.toolsGrid}>
-                    <View style={styles.toolItem}>
-                        <Ionicons name="sunny-outline" size={24} color="#F59E0B" />
-                        <Text style={styles.toolLabel}>Mood Track</Text>
+                {/* Notes Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>My Notes</Text>
+                        <TouchableOpacity onPress={() => setIsNoteInputVisible(true)}>
+                            <Ionicons name="add-circle" size={32} color={theme.primary} />
+                        </TouchableOpacity>
                     </View>
-                    <View style={styles.toolItem}>
-                        <Ionicons name="book-outline" size={24} color="#8B5CF6" />
-                        <Text style={styles.toolLabel}>Journal</Text>
-                    </View>
+
+                    {isNoteInputVisible && (
+                        <View style={[styles.noteInputContainer, { backgroundColor: theme.card }]}>
+                            <TextInput
+                                style={[styles.noteInput, { color: theme.text, backgroundColor: theme.input }]}
+                                placeholder="Write a note..."
+                                placeholderTextColor={theme.subText}
+                                value={noteInput}
+                                onChangeText={setNoteInput}
+                                autoFocus
+                                multiline
+                            />
+                            <View style={styles.noteInputButtons}>
+                                <TouchableOpacity onPress={() => setIsNoteInputVisible(false)} style={styles.noteCancelBtn}>
+                                    <Text style={{ color: theme.subText }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleAddNote} style={[styles.noteSaveBtn, { backgroundColor: theme.primary }]}>
+                                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Save</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    {notes.length === 0 ? (
+                        <Text style={[styles.emptyNotes, { color: theme.subText }]}>No notes yet. Tap + to add one.</Text>
+                    ) : (
+                        notes.map(note => (
+                            <View key={note.id} style={[styles.noteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                <Text style={[styles.noteContent, { color: theme.text }]}>{note.content}</Text>
+                                <View style={styles.noteFooter}>
+                                    <Text style={[styles.noteDate, { color: theme.subText }]}>{new Date(note.createdAt).toLocaleDateString()}</Text>
+                                    <TouchableOpacity onPress={() => handleDeleteNote(note.id)}>
+                                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))
+                    )}
                 </View>
 
                 <View style={{ height: 40 }} />
@@ -345,8 +455,8 @@ export default function ExploreScreen() {
                     behavior={Platform.OS === "ios" ? "padding" : "height"}
                     style={styles.modalOverlay}
                 >
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Set Alarm</Text>
+                    <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Set Alarm</Text>
 
                         <View style={styles.pickerContainer}>
                             <DateTimePicker
@@ -357,15 +467,16 @@ export default function ExploreScreen() {
                                 onChange={(event, selectedDate) => {
                                     if (selectedDate) setTempDate(selectedDate);
                                 }}
-                                textColor="#111827"
+                                textColor={theme.text}
                                 style={styles.datePicker}
+                                themeVariant={theme.mode}
                             />
                         </View>
 
-                        <View style={styles.repeatRow}>
+                        <View style={[styles.repeatRow, { borderColor: theme.border }]}>
                             <View>
-                                <Text style={styles.repeatTitle}>Repeat Everyday</Text>
-                                <Text style={styles.repeatSubtitle}>Alarm triggers daily at this time</Text>
+                                <Text style={[styles.repeatTitle, { color: theme.text }]}>Repeat Everyday</Text>
+                                <Text style={[styles.repeatSubtitle, { color: theme.subText }]}>Alarm triggers daily at this time</Text>
                             </View>
                             <Switch
                                 value={tempIsRepeating}
@@ -380,7 +491,7 @@ export default function ExploreScreen() {
                                 style={styles.cancelButton}
                                 onPress={() => setIsAlarmModalVisible(false)}
                             >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                <Text style={[styles.cancelButtonText, { color: theme.subText }]}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.saveButton}
@@ -423,7 +534,6 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F9FAFB',
     },
     scrollContent: {
         paddingHorizontal: 24,
@@ -435,20 +545,40 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#111827',
         letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: 18,
-        color: '#6B7280',
         marginTop: 4,
     },
+    quoteCard: {
+        padding: 24,
+        borderRadius: 24,
+        marginBottom: 24,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 3,
+    },
+    quoteIconContainer: {
+        marginBottom: 12,
+    },
+    quoteText: {
+        fontSize: 18,
+        fontStyle: 'italic',
+        fontWeight: '500',
+        marginBottom: 12,
+        lineHeight: 26,
+    },
+    quoteAuthor: {
+        fontSize: 14,
+        fontWeight: '700',
+        alignSelf: 'flex-end',
+    },
     sectionCard: {
-        backgroundColor: 'white',
         borderRadius: 28,
         padding: 24,
         marginBottom: 20,
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
@@ -463,7 +593,6 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 16,
-        backgroundColor: '#F3F4F6',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -471,13 +600,10 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#111827',
     },
     repeatBadge: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#10B981',
-        backgroundColor: '#ECFDF5',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 6,
@@ -487,20 +613,10 @@ const styles = StyleSheet.create({
         marginTop: 4,
         gap: 8,
     },
-    disabledBadge: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#6B7280',
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
     statusRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
         padding: 16,
         borderRadius: 16,
         marginBottom: 20,
@@ -511,11 +627,9 @@ const styles = StyleSheet.create({
     statusLabel: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#111827',
     },
     statusValue: {
         fontSize: 12,
-        color: '#6B7280',
         marginTop: 2,
     },
     alarmDisplay: {
@@ -525,20 +639,18 @@ const styles = StyleSheet.create({
     alarmValue: {
         fontSize: width > 400 ? 56 : 48, // Responsive sizing
         fontWeight: '800',
-        color: '#111827',
         letterSpacing: -1,
     },
     disabledValue: {
-        color: '#D1D5DB',
+        opacity: 0.3,
     },
     remainingText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#10B981',
         marginTop: 4,
     },
     disabledText: {
-        color: '#9CA3AF',
+        opacity: 0.5,
     },
     setAlarmButton: {
         backgroundColor: '#10B981',
@@ -553,7 +665,6 @@ const styles = StyleSheet.create({
     timerValue: {
         fontSize: 44,
         fontWeight: '800',
-        color: '#111827',
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     },
     controlRow: {
@@ -577,7 +688,7 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
     resetButton: {
-        backgroundColor: '#F3F4F6',
+        // backgroundColor handled dynamically
     },
     buttonText: {
         color: 'white',
@@ -586,31 +697,8 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     resetButtonText: {
-        color: '#4B5563',
         fontSize: 16,
         fontWeight: '700',
-    },
-    toolsGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    toolItem: {
-        width: (width - 64) / 2,
-        backgroundColor: 'white',
-        borderRadius: 24,
-        padding: 24,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 1,
-    },
-    toolLabel: {
-        marginTop: 12,
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#4B5563',
     },
     modalOverlay: {
         flex: 1,
@@ -619,14 +707,12 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     modalContent: {
-        backgroundColor: 'white',
         borderRadius: 28,
         padding: 24,
     },
     modalTitle: {
         fontSize: 22,
         fontWeight: '700',
-        color: '#111827',
         marginBottom: 24,
         textAlign: 'center',
     },
@@ -647,17 +733,14 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderTopWidth: 1,
         borderBottomWidth: 1,
-        borderColor: '#F3F4F6',
         marginBottom: 24,
     },
     repeatTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#111827',
     },
     repeatSubtitle: {
         fontSize: 12,
-        color: '#6B7280',
         marginTop: 2,
     },
     modalButtons: {
@@ -677,7 +760,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cancelButtonText: {
-        color: '#6B7280',
         fontWeight: '600',
     },
     saveButtonText: {
@@ -727,5 +809,114 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '900',
         color: '#EF4444',
-    }
+    },
+    section: {
+        marginBottom: 32,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        marginBottom: 16,
+    },
+    addNoteCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+    },
+    addNoteIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    addNoteText: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    noteInputContainer: {
+        padding: 20,
+        borderRadius: 24,
+        marginBottom: 24,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 4,
+    },
+    noteInput: {
+        minHeight: 100,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 20,
+        textAlignVertical: 'top',
+        fontSize: 16,
+    },
+    noteInputButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 16,
+    },
+    noteCancelBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    noteSaveBtn: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 14,
+    },
+    notesGrid: {
+        gap: 16,
+    },
+    emptyStateContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+        opacity: 0.6,
+    },
+    emptyNotes: {
+        fontSize: 16,
+        marginTop: 12,
+    },
+    noteCard: {
+        padding: 20,
+        borderRadius: 24,
+        marginBottom: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 1,
+    },
+    noteContent: {
+        fontSize: 16,
+        fontWeight: '500',
+        marginBottom: 16,
+        lineHeight: 24,
+    },
+    noteDivider: {
+        height: 1,
+        width: '100%',
+        marginBottom: 12,
+    },
+    noteFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    noteDate: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
 });

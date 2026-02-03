@@ -168,6 +168,58 @@ export const storage = {
         const updatedNotes = notes.filter(note => note.id !== noteId);
         await this.saveNotes(updatedNotes);
         return updatedNotes;
+    },
+
+    /**
+     * Get all projects
+     */
+    async getProjects() {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@projects_data');
+            return jsonValue != null ? JSON.parse(jsonValue) : [];
+        } catch (e) {
+            console.error('Error reading projects', e);
+            return [];
+        }
+    },
+
+    /**
+     * Save all projects
+     */
+    async saveProjects(projects) {
+        try {
+            const jsonValue = JSON.stringify(projects);
+            await AsyncStorage.setItem('@projects_data', jsonValue);
+        } catch (e) {
+            console.error('Error saving projects', e);
+        }
+    },
+
+    /**
+     * Add a new project
+     * project: { name, durationDays }
+     */
+    async addProject(projectData) {
+        const projects = await this.getProjects();
+        const newProject = {
+            id: Date.now().toString(),
+            name: projectData.name,
+            durationDays: parseInt(projectData.durationDays, 10),
+            createdAt: new Date().toISOString(),
+        };
+        const newProjects = [newProject, ...projects];
+        await this.saveProjects(newProjects);
+        return newProjects;
+    },
+
+    /**
+     * Delete a project
+     */
+    async deleteProject(projectId) {
+        const projects = await this.getProjects();
+        const updatedProjects = projects.filter(p => p.id !== projectId);
+        await this.saveProjects(updatedProjects);
+        return updatedProjects;
     }
 
 };

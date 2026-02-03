@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Switch, TextInput, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
-import { useUser } from '../context/UserContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
 
 export default function SettingsScreen() {
     const { theme, isDark, toggleTheme } = useTheme();
@@ -74,6 +74,31 @@ export default function SettingsScreen() {
                             onValueChange={toggleTheme}
                             value={isDark}
                         />
+                    </View>
+                </View>
+
+                {/* Developer Section */}
+                <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <Text style={[styles.sectionHeader, { color: theme.subText }]}>DEVELOPER</Text>
+
+                    <View style={[styles.row, { paddingVertical: 8 }]}>
+                        <View style={styles.rowInfo}>
+                            <Ionicons name="code-slash-outline" size={22} color={theme.text} style={styles.rowIcon} />
+                            <View>
+                                <Text style={[styles.rowLabel, { color: theme.text }]}>Developed by</Text>
+                                <Text style={[styles.value, { color: theme.primary, fontWeight: '700', fontSize: 15, marginTop: 2 }]}>Antigravity</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={[styles.row, { paddingVertical: 8 }]}>
+                        <View style={styles.rowInfo}>
+                            <Ionicons name="hardware-chip-outline" size={22} color={theme.text} style={styles.rowIcon} />
+                            <View>
+                                <Text style={[styles.rowLabel, { color: theme.text }]}>Powered by</Text>
+                                <Text style={[styles.value, { color: theme.subText, fontSize: 13, marginTop: 2 }]}>Google Deepmind</Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
 

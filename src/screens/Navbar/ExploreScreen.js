@@ -5,8 +5,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useTheme } from '../context/ThemeContext';
-import { storage } from '../utils/storage';
+import { useTheme } from '../../context/ThemeContext';
+import { storage } from '../../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -249,197 +249,203 @@ export default function ExploreScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                <View style={styles.header}>
-                    <Text style={[styles.title, { color: theme.text }]}>Explore</Text>
-                    <Text style={[styles.subtitle, { color: theme.subText }]}>Productivity tools for your journey</Text>
-                </View>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+            >
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.header}>
+                        <Text style={[styles.title, { color: theme.text }]}>Explore</Text>
+                        <Text style={[styles.subtitle, { color: theme.subText }]}>Productivity tools for your journey</Text>
+                    </View>
 
-                {/* Alarm Section */}
-                <View style={[styles.sectionCard, styles.alarmCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                    <View style={styles.cardHeader}>
-                        <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
-                            <Ionicons name="alarm-outline" size={28} color="#10B981" />
-                        </View>
-                        <View>
-                            <Text style={[styles.cardTitle, { color: theme.text }]}>Smart Alarm</Text>
-                            <View style={styles.badgeRow}>
-                                {isRepeating && <Text style={[styles.repeatBadge, { backgroundColor: theme.tint + '20', color: theme.success }]}>Everyday</Text>}
+                    {/* Alarm Section */}
+                    <View style={[styles.sectionCard, styles.alarmCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                        <View style={styles.cardHeader}>
+                            <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
+                                <Ionicons name="alarm-outline" size={28} color="#10B981" />
+                            </View>
+                            <View>
+                                <Text style={[styles.cardTitle, { color: theme.text }]}>Smart Alarm</Text>
+                                <View style={styles.badgeRow}>
+                                    {isRepeating && <Text style={[styles.repeatBadge, { backgroundColor: theme.tint + '20', color: theme.success }]}>Everyday</Text>}
+                                </View>
                             </View>
                         </View>
-                    </View>
 
-                    <View style={styles.alarmDisplay}>
-                        <Text style={[styles.alarmValue, { color: theme.text }, !isAlarmEnabled && styles.disabledValue]}>
-                            {formatDisplayTime(alarmTime)}
-                        </Text>
-                        <Text style={[styles.remainingText, !isAlarmEnabled && styles.disabledText]}>
-                            {alarmTime ? timeRemaining : 'Set an alarm to see time left'}
-                        </Text>
-                    </View>
-
-                    <View style={[styles.statusRow, { backgroundColor: theme.input }]}>
-                        <View style={styles.statusTextCol}>
-                            <Text style={[styles.statusLabel, { color: theme.text }]}>Alarm Status</Text>
-                            <Text style={styles.statusValue}>{isAlarmEnabled ? 'Currently Active' : 'Currently Disabled'}</Text>
-                        </View>
-                        <Switch
-                            value={isAlarmEnabled}
-                            onValueChange={toggleAlarmStatus}
-                            trackColor={{ false: '#D1D5DB', true: '#6EE7B7' }}
-                            thumbColor={isAlarmEnabled ? '#10B981' : '#F3F4F6'}
-                            disabled={!alarmTime}
-                        />
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.setAlarmButton}
-                        onPress={() => {
-                            if (alarmTime) {
-                                let [h, m] = alarmTime.split(':').map(Number);
-                                const d = new Date();
-                                d.setHours(h, m, 0, 0);
-                                setTempDate(d);
-                                setTempIsRepeating(isRepeating);
-                            } else {
-                                const d = new Date();
-                                d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5); // Round to nearest 5 mins for convenience
-                                setTempDate(d);
-                                setTempIsRepeating(false);
-                            }
-                            setIsAlarmModalVisible(true);
-                        }}
-                    >
-                        <Text style={styles.buttonText}>{alarmTime ? 'Change Alarm' : 'Set Alarm'}</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Stopwatch Section */}
-                <View style={[styles.sectionCard, styles.stopwatchCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                    <View style={styles.cardHeader}>
-                        <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
-                            <Ionicons name="stopwatch-outline" size={28} color="#3B82F6" />
-                        </View>
-                        <Text style={[styles.cardTitle, { color: theme.text }]}>Stopwatch</Text>
-                    </View>
-
-                    <View style={styles.timerDisplay}>
-                        <Text style={[styles.timerValue, { color: theme.text }]}>{formatStopwatchTime(stopwatchTime)}</Text>
-                    </View>
-
-                    <View style={styles.controlRow}>
-                        <TouchableOpacity
-                            style={[styles.controlButton, styles.resetButton, { backgroundColor: theme.input }]}
-                            onPress={resetStopwatch}
-                        >
-                            <Text style={[styles.resetButtonText, { color: theme.text }]}>Reset</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.controlButton,
-                                isStopwatchRunning ? styles.stopButton : styles.startButton
-                            ]}
-                            onPress={toggleStopwatch}
-                        >
-                            <Ionicons
-                                name={isStopwatchRunning ? "pause" : "play"}
-                                size={24}
-                                color="white"
-                            />
-                            <Text style={styles.buttonText}>
-                                {isStopwatchRunning ? 'Stop' : 'Start'}
+                        <View style={styles.alarmDisplay}>
+                            <Text style={[styles.alarmValue, { color: theme.text }, !isAlarmEnabled && styles.disabledValue]}>
+                                {formatDisplayTime(alarmTime)}
                             </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* Notes Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>My Notes</Text>
-
-                    {/* Add Note Trigger Card */}
-                    {!isNoteInputVisible && (
-                        <TouchableOpacity
-                            style={[styles.addNoteCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-                            onPress={() => setIsNoteInputVisible(true)}
-                        >
-                            <View style={[styles.addNoteIcon, { backgroundColor: theme.input }]}>
-                                <Ionicons name="add" size={24} color={theme.primary} />
-                            </View>
-                            <Text style={[styles.addNoteText, { color: theme.subText }]}>Capture a thought...</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {isNoteInputVisible && (
-                        <View style={[styles.noteInputContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                            <TextInput
-                                style={[styles.noteInput, { color: theme.text, backgroundColor: theme.input }]}
-                                placeholder="What's on your mind?"
-                                placeholderTextColor={theme.subText}
-                                value={noteInput}
-                                onChangeText={setNoteInput}
-                                autoFocus
-                                multiline
-                            />
-                            <View style={styles.noteInputButtons}>
-                                <TouchableOpacity onPress={() => setIsNoteInputVisible(false)} style={styles.noteCancelBtn}>
-                                    <Text style={{ color: theme.subText, fontWeight: '600' }}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={handleAddNote} style={[styles.noteSaveBtn, { backgroundColor: theme.primary }]}>
-                                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Save Note</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <Text style={[styles.remainingText, !isAlarmEnabled && styles.disabledText]}>
+                                {alarmTime ? timeRemaining : 'Set an alarm to see time left'}
+                            </Text>
                         </View>
-                    )}
 
-                    <View style={styles.notesGrid}>
-                        {notes.length === 0 && !isNoteInputVisible ? (
-                            <View style={styles.emptyStateContainer}>
-                                <Ionicons name="document-text-outline" size={48} color={theme.border} />
-                                <Text style={[styles.emptyNotes, { color: theme.subText }]}>Your notes will appear here</Text>
+                        <View style={[styles.statusRow, { backgroundColor: theme.input }]}>
+                            <View style={styles.statusTextCol}>
+                                <Text style={[styles.statusLabel, { color: theme.text }]}>Alarm Status</Text>
+                                <Text style={styles.statusValue}>{isAlarmEnabled ? 'Currently Active' : 'Currently Disabled'}</Text>
                             </View>
-                        ) : (
-                            notes.map((note, index) => {
-                                // Generate a deterministic color based on index or id for visual variety
-                                const noteColors = [
-                                    { bg: '#FEF3C7', text: '#92400E' }, // Amber
-                                    { bg: '#DBEAFE', text: '#1E40AF' }, // Blue
-                                    { bg: '#D1FAE5', text: '#065F46' }, // Emerald
-                                    { bg: '#FCE7F3', text: '#9D174D' }, // Pink
-                                    { bg: '#E0E7FF', text: '#3730A3' }, // Indigo
-                                ];
-                                // Use theme card color if dark mode, else use pastel
-                                const isDark = theme.mode === 'dark';
-                                const colorSet = noteColors[index % noteColors.length];
-                                const cardBg = isDark ? theme.card : colorSet.bg;
-                                const textColor = isDark ? theme.text : colorSet.text;
-                                const dateColor = isDark ? theme.subText : colorSet.text; // slightly lighter in real app, but this works
+                            <Switch
+                                value={isAlarmEnabled}
+                                onValueChange={toggleAlarmStatus}
+                                trackColor={{ false: '#D1D5DB', true: '#6EE7B7' }}
+                                thumbColor={isAlarmEnabled ? '#10B981' : '#F3F4F6'}
+                                disabled={!alarmTime}
+                            />
+                        </View>
 
-                                return (
-                                    <View key={note.id} style={[styles.noteCard, { backgroundColor: cardBg, shadowColor: theme.shadow }]}>
-                                        <Text style={[styles.noteContent, { color: textColor }]}>{note.content}</Text>
-                                        <View style={[styles.noteDivider, { backgroundColor: isDark ? theme.border : 'rgba(0,0,0,0.05)' }]} />
-                                        <View style={styles.noteFooter}>
-                                            <Text style={[styles.noteDate, { color: dateColor, opacity: 0.8 }]}>
-                                                {new Date(note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                            </Text>
-                                            <TouchableOpacity
-                                                onPress={() => handleDeleteNote(note.id)}
-                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                            >
-                                                <Ionicons name="trash-outline" size={16} color={isDark ? '#EF4444' : textColor} style={{ opacity: 0.7 }} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                );
-                            })
-                        )}
+                        <TouchableOpacity
+                            style={styles.setAlarmButton}
+                            onPress={() => {
+                                if (alarmTime) {
+                                    let [h, m] = alarmTime.split(':').map(Number);
+                                    const d = new Date();
+                                    d.setHours(h, m, 0, 0);
+                                    setTempDate(d);
+                                    setTempIsRepeating(isRepeating);
+                                } else {
+                                    const d = new Date();
+                                    d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5); // Round to nearest 5 mins for convenience
+                                    setTempDate(d);
+                                    setTempIsRepeating(false);
+                                }
+                                setIsAlarmModalVisible(true);
+                            }}
+                        >
+                            <Text style={styles.buttonText}>{alarmTime ? 'Change Alarm' : 'Set Alarm'}</Text>
+                        </TouchableOpacity>
                     </View>
-                </View>
 
-                <View style={{ height: 40 }} />
-            </ScrollView>
+                    {/* Stopwatch Section */}
+                    <View style={[styles.sectionCard, styles.stopwatchCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                        <View style={styles.cardHeader}>
+                            <View style={[styles.iconBox, { backgroundColor: theme.input }]}>
+                                <Ionicons name="stopwatch-outline" size={28} color="#3B82F6" />
+                            </View>
+                            <Text style={[styles.cardTitle, { color: theme.text }]}>Stopwatch</Text>
+                        </View>
+
+                        <View style={styles.timerDisplay}>
+                            <Text style={[styles.timerValue, { color: theme.text }]}>{formatStopwatchTime(stopwatchTime)}</Text>
+                        </View>
+
+                        <View style={styles.controlRow}>
+                            <TouchableOpacity
+                                style={[styles.controlButton, styles.resetButton, { backgroundColor: theme.input }]}
+                                onPress={resetStopwatch}
+                            >
+                                <Text style={[styles.resetButtonText, { color: theme.text }]}>Reset</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.controlButton,
+                                    isStopwatchRunning ? styles.stopButton : styles.startButton
+                                ]}
+                                onPress={toggleStopwatch}
+                            >
+                                <Ionicons
+                                    name={isStopwatchRunning ? "pause" : "play"}
+                                    size={24}
+                                    color="white"
+                                />
+                                <Text style={styles.buttonText}>
+                                    {isStopwatchRunning ? 'Stop' : 'Start'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Notes Section */}
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>My Notes</Text>
+
+                        {/* Add Note Trigger Card */}
+                        {!isNoteInputVisible && (
+                            <TouchableOpacity
+                                style={[styles.addNoteCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                                onPress={() => setIsNoteInputVisible(true)}
+                            >
+                                <View style={[styles.addNoteIcon, { backgroundColor: theme.input }]}>
+                                    <Ionicons name="add" size={24} color={theme.primary} />
+                                </View>
+                                <Text style={[styles.addNoteText, { color: theme.subText }]}>Capture a thought...</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {isNoteInputVisible && (
+                            <View style={[styles.noteInputContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                <TextInput
+                                    style={[styles.noteInput, { color: theme.text, backgroundColor: theme.input }]}
+                                    placeholder="What's on your mind?"
+                                    placeholderTextColor={theme.subText}
+                                    value={noteInput}
+                                    onChangeText={setNoteInput}
+                                    autoFocus
+                                    multiline
+                                />
+                                <View style={styles.noteInputButtons}>
+                                    <TouchableOpacity onPress={() => setIsNoteInputVisible(false)} style={styles.noteCancelBtn}>
+                                        <Text style={{ color: theme.subText, fontWeight: '600' }}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={handleAddNote} style={[styles.noteSaveBtn, { backgroundColor: theme.primary }]}>
+                                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Save Note</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+
+                        <View style={styles.notesGrid}>
+                            {notes.length === 0 && !isNoteInputVisible ? (
+                                <View style={styles.emptyStateContainer}>
+                                    <Ionicons name="document-text-outline" size={48} color={theme.border} />
+                                    <Text style={[styles.emptyNotes, { color: theme.subText }]}>Your notes will appear here</Text>
+                                </View>
+                            ) : (
+                                notes.map((note, index) => {
+                                    // Generate a deterministic color based on index or id for visual variety
+                                    const noteColors = [
+                                        { bg: '#FEF3C7', text: '#92400E' }, // Amber
+                                        { bg: '#DBEAFE', text: '#1E40AF' }, // Blue
+                                        { bg: '#D1FAE5', text: '#065F46' }, // Emerald
+                                        { bg: '#FCE7F3', text: '#9D174D' }, // Pink
+                                        { bg: '#E0E7FF', text: '#3730A3' }, // Indigo
+                                    ];
+                                    // Use theme card color if dark mode, else use pastel
+                                    const isDark = theme.mode === 'dark';
+                                    const colorSet = noteColors[index % noteColors.length];
+                                    const cardBg = isDark ? theme.card : colorSet.bg;
+                                    const textColor = isDark ? theme.text : colorSet.text;
+                                    const dateColor = isDark ? theme.subText : colorSet.text; // slightly lighter in real app, but this works
+
+                                    return (
+                                        <View key={note.id} style={[styles.noteCard, { backgroundColor: cardBg, shadowColor: theme.shadow }]}>
+                                            <Text style={[styles.noteContent, { color: textColor }]}>{note.content}</Text>
+                                            <View style={[styles.noteDivider, { backgroundColor: isDark ? theme.border : 'rgba(0,0,0,0.05)' }]} />
+                                            <View style={styles.noteFooter}>
+                                                <Text style={[styles.noteDate, { color: dateColor, opacity: 0.8 }]}>
+                                                    {new Date(note.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    onPress={() => handleDeleteNote(note.id)}
+                                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                >
+                                                    <Ionicons name="trash-outline" size={16} color={isDark ? '#EF4444' : textColor} style={{ opacity: 0.7 }} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    );
+                                })
+                            )}
+                        </View>
+                    </View>
+
+                    <View style={{ height: 40 }} />
+                </ScrollView>
+            </KeyboardAvoidingView>
 
             {/* Alarm Set Modal */}
             <Modal

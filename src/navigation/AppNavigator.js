@@ -111,20 +111,84 @@ function TabNavigator() {
 
 import { useTheme } from '../context/ThemeContext';
 
+import CustomHeader from '../components/CustomHeader';
+
 export default function AppNavigator() {
     const { theme } = useTheme();
 
     return (
         <NavigationContainer>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator
+                screenOptions={{
+                    headerShown: false,
+                }}
+            >
                 <Stack.Screen name="MainTabs" component={TabNavigator} />
-                <Stack.Screen name="News" component={NewsScreen} options={{ headerShown: true, title: 'News', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Market" component={MarketScreen} options={{ headerShown: true, title: 'Market', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Trends" component={TrendsScreen} options={{ headerShown: true, title: 'Trends', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Crypto" component={CryptoScreen} options={{ headerShown: true, title: 'Crypto', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Movies" component={MoviesScreen} options={{ headerShown: true, title: 'Movies', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Youtube" component={YoutubeScreen} options={{ headerShown: true, title: 'YouTube', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
-                <Stack.Screen name="Tech" component={TechScreen} options={{ headerShown: true, title: 'Tech Stuff', headerStyle: { backgroundColor: theme.card }, headerTintColor: theme.text }} />
+
+                {/* Sidebar Screens with Custom Header */}
+                <Stack.Screen
+                    name="News"
+                    component={NewsScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Global News'
+                    }}
+                />
+                <Stack.Screen
+                    name="Market"
+                    component={MarketScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Market Watch'
+                    }}
+                />
+                <Stack.Screen
+                    name="Trends"
+                    component={TrendsScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Trending'
+                    }}
+                />
+                <Stack.Screen
+                    name="Crypto"
+                    component={CryptoScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Crypto News'
+                    }}
+                />
+                <Stack.Screen
+                    name="Movies"
+                    component={MoviesScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Movies & TV'
+                    }}
+                />
+                <Stack.Screen
+                    name="Youtube"
+                    component={YoutubeScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'YouTube'
+                    }}
+                />
+                <Stack.Screen
+                    name="Tech"
+                    component={TechScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Tech Stuff'
+                    }}
+                />
             </Stack.Navigator>
         </NavigationContainer>
     );

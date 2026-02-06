@@ -1,16 +1,25 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function NewsScreen() {
     const { theme } = useTheme();
+    const [loading, setLoading] = useState(true);
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <Ionicons name="newspaper-outline" size={80} color={theme.primary} />
-            <Text style={[styles.title, { color: theme.text }]}>Global News</Text>
-            <Text style={[styles.subtitle, { color: theme.subText }]}>Latest updates coming soon.</Text>
+            <WebView
+                source={{ uri: 'https://edition.cnn.com/' }}
+                style={styles.webview}
+                onLoadStart={() => setLoading(true)}
+                onLoadEnd={() => setLoading(false)}
+            />
+            {loading && (
+                <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+                    <ActivityIndicator size="large" color={theme.primary} />
+                </View>
+            )}
         </View>
     );
 }
@@ -18,17 +27,13 @@ export default function NewsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    webview: {
+        flex: 1,
+    },
+    loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginTop: 20,
-        marginBottom: 10,
-    },
-    subtitle: {
-        fontSize: 16,
-    }
 });

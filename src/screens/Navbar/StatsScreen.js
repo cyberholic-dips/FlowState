@@ -31,6 +31,7 @@ export default function StatsScreen() {
         bestStreak: 0,
         activeHabits: 0
     });
+    const [focusSessions, setFocusSessions] = useState([]);
 
     const calculateStats = useCallback((loadedHabits) => {
         const days = getLastSevenDays();
@@ -72,8 +73,24 @@ export default function StatsScreen() {
 
     const loadData = async () => {
         const storedHabits = await storage.getHabits();
+        const storedSessions = await storage.getFocusSessions();
         setHabits(storedHabits);
+        setFocusSessions(storedSessions);
         calculateStats(storedHabits);
+    };
+
+    const handleDeleteFocusSession = async (id) => {
+        const updatedSessions = await storage.deleteFocusSession(id);
+        setFocusSessions(updatedSessions);
+    };
+
+    const formatDuration = (ms) => {
+        const mins = Math.floor(ms / 60000);
+        const hrs = Math.floor(mins / 60);
+        if (hrs > 0) {
+            return `${hrs}h ${mins % 60}m`;
+        }
+        return `${mins}m`;
     };
 
     useFocusEffect(
@@ -144,6 +161,7 @@ export default function StatsScreen() {
                 </View>
 
                 {/* Habit Breakdown */}
+
                 <View style={styles.breakdownSection}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>Habit Breakdown</Text>
                     {habits.map(habit => (
@@ -164,6 +182,39 @@ export default function StatsScreen() {
                             </View>
                         </View>
                     ))}
+                </View>
+
+                {/* Focus Sessions Section */}
+                <View style={styles.focusSection}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Focus Sessions</Text>
+                    {focusSessions.length === 0 ? (
+                        <View style={[styles.emptyFocusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                            <Ionicons name="timer-outline" size={32} color={theme.subText} />
+                            <Text style={[styles.emptyFocusText, { color: theme.subText }]}>No focus sessions recorded yet (min. 30 mins)</Text>
+                        </View>
+                    ) : (
+                        focusSessions.map(session => (
+                            <View key={session.id} style={[styles.focusItem, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                <View style={styles.focusInfo}>
+                                    <View style={[styles.focusIconBox, { backgroundColor: theme.input }]}>
+                                        <Ionicons name="stopwatch" size={24} color={theme.primary} />
+                                    </View>
+                                    <View style={styles.focusTextContent}>
+                                        <Text style={[styles.focusTitle, { color: theme.text }]}>{session.title}</Text>
+                                        <Text style={[styles.focusMeta, { color: theme.subText }]}>
+                                            {new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} • {formatDuration(session.duration)}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity
+                                    onPress={() => handleDeleteFocusSession(session.id)}
+                                    style={styles.deleteButton}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    )}
                 </View>
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -328,4 +379,61 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 4,
     },
+    focusSection: {
+        marginBottom: 20,
+    },
+    focusItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 12,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 1,
+    },
+    focusInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    focusIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    focusTextContent: {
+        flex: 1,
+    },
+    focusTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    focusMeta: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    deleteButton: {
+        padding: 8,
+    },
+    emptyFocusCard: {
+        padding: 40,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderStyle: 'dashed',
+    },
+    emptyFocusText: {
+        marginTop: 12,
+        fontSize: 14,
+        textAlign: 'center',
+        fontWeight: '500',
+    }
 });

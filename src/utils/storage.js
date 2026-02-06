@@ -220,6 +220,57 @@ export const storage = {
         const updatedProjects = projects.filter(p => p.id !== projectId);
         await this.saveProjects(updatedProjects);
         return updatedProjects;
+    },
+
+    /**
+     * Get all focus sessions
+     */
+    async getFocusSessions() {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@focus_sessions');
+            return jsonValue != null ? JSON.parse(jsonValue) : [];
+        } catch (e) {
+            console.error('Error reading focus sessions', e);
+            return [];
+        }
+    },
+
+    /**
+     * Save all focus sessions
+     */
+    async saveFocusSessions(sessions) {
+        try {
+            const jsonValue = JSON.stringify(sessions);
+            await AsyncStorage.setItem('@focus_sessions', jsonValue);
+        } catch (e) {
+            console.error('Error saving focus sessions', e);
+        }
+    },
+
+    /**
+     * Add a new focus session
+     */
+    async addFocusSession(sessionData) {
+        const sessions = await this.getFocusSessions();
+        const newSession = {
+            id: Date.now().toString(),
+            title: sessionData.title,
+            duration: sessionData.duration, // in milliseconds
+            createdAt: new Date().toISOString(),
+        };
+        const newSessions = [newSession, ...sessions];
+        await this.saveFocusSessions(newSessions);
+        return newSessions;
+    },
+
+    /**
+     * Delete a focus session
+     */
+    async deleteFocusSession(sessionId) {
+        const sessions = await this.getFocusSessions();
+        const updatedSessions = sessions.filter(s => s.id !== sessionId);
+        await this.saveFocusSessions(updatedSessions);
+        return updatedSessions;
     }
 
 };

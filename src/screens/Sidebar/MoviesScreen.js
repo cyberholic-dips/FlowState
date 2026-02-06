@@ -1,16 +1,25 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '../../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function MoviesScreen() {
     const { theme } = useTheme();
+    const [loading, setLoading] = useState(true);
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <Ionicons name="film-outline" size={80} color={theme.primary} />
-            <Text style={[styles.title, { color: theme.text }]}>Movies</Text>
-            <Text style={[styles.subtitle, { color: theme.subText }]}>Track your watchlist and favorites.</Text>
+            <WebView
+                source={{ uri: 'https://www.imdb.com/what-to-watch/fan-favorites/' }}
+                style={styles.webview}
+                onLoadStart={() => setLoading(true)}
+                onLoadEnd={() => setLoading(false)}
+            />
+            {loading && (
+                <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+                    <ActivityIndicator size="large" color={theme.primary} />
+                </View>
+            )}
         </View>
     );
 }
@@ -18,17 +27,13 @@ export default function MoviesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    webview: {
+        flex: 1,
+    },
+    loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginTop: 20,
-        marginBottom: 10,
-    },
-    subtitle: {
-        fontSize: 16,
-    }
 });

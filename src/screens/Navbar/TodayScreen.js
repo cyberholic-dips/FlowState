@@ -263,7 +263,7 @@ export default function TodayScreen() {
                                     <Text style={[styles.dateLabel, { color: theme.text }]}>{formatDate(today)}</Text>
                                 </View>
                             </View>
-                            <Ionicons name="chevron-forward" size={20} color={theme.subText} style={{ marginLeft: 8 }} />
+                            <Ionicons name="menu-outline" size={24} color={theme.text} style={{ marginLeft: 12 }} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.addButton}

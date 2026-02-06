@@ -25,6 +25,7 @@ export default function ExploreScreen() {
     // --- Stopwatch State ---
     const [stopwatchTime, setStopwatchTime] = useState(0);
     const [isStopwatchRunning, setIsStopwatchRunning] = useState(false);
+    const [stopwatchTitle, setStopwatchTitle] = useState('');
     const stopwatchInterval = useRef(null);
 
     // --- Alarm State ---
@@ -107,10 +108,48 @@ export default function ExploreScreen() {
         return `${hrs}:${mins}:${secs}.${ms}`;
     };
 
-    const toggleStopwatch = () => setIsStopwatchRunning(!isStopwatchRunning);
+    const toggleStopwatch = async () => {
+        if (!isStopwatchRunning) {
+            if (!stopwatchTitle.trim()) {
+                Alert.alert('Title Required', 'Please enter a title for your focus session before starting.');
+                return;
+            }
+            setIsStopwatchRunning(true);
+        } else {
+            setIsStopwatchRunning(false);
+            // Record if > 30 minutes (1,800,000 ms)
+            if (stopwatchTime >= 1800000) {
+                await storage.addFocusSession({
+                    title: stopwatchTitle,
+                    duration: stopwatchTime
+                });
+                Alert.alert('Session Recorded', `Great job! Your focus session "${stopwatchTitle}" has been saved.`);
+                setStopwatchTime(0);
+                setStopwatchTitle('');
+            } else if (stopwatchTime > 0) {
+                Alert.alert(
+                    'Session Too Short',
+                    'Focus sessions are only recorded if they last more than 30 minutes. Do you want to reset?',
+                    [
+                        { text: 'Keep Time', style: 'cancel' },
+                        {
+                            text: 'Reset',
+                            onPress: () => {
+                                setStopwatchTime(0);
+                                setStopwatchTitle('');
+                            },
+                            style: 'destructive'
+                        }
+                    ]
+                );
+            }
+        }
+    };
+
     const resetStopwatch = () => {
         setIsStopwatchRunning(false);
         setStopwatchTime(0);
+        setStopwatchTitle('');
     };
 
     // --- Alarm Logic ---
@@ -326,6 +365,17 @@ export default function ExploreScreen() {
                                 <Ionicons name="stopwatch-outline" size={28} color="#3B82F6" />
                             </View>
                             <Text style={[styles.cardTitle, { color: theme.text }]}>Stopwatch</Text>
+                        </View>
+
+                        <View style={styles.stopwatchTitleContainer}>
+                            <TextInput
+                                style={[styles.stopwatchInput, { color: theme.text, backgroundColor: theme.input }]}
+                                placeholder="What are you focusing on?"
+                                placeholderTextColor={theme.subText}
+                                value={stopwatchTitle}
+                                onChangeText={setStopwatchTitle}
+                                editable={!isStopwatchRunning}
+                            />
                         </View>
 
                         <View style={styles.timerDisplay}>
@@ -645,6 +695,15 @@ const styles = StyleSheet.create({
         fontSize: 44,
         fontWeight: '800',
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    stopwatchTitleContainer: {
+        marginBottom: 20,
+    },
+    stopwatchInput: {
+        borderRadius: 12,
+        padding: 14,
+        fontSize: 16,
+        fontWeight: '600',
     },
     controlRow: {
         flexDirection: 'row',

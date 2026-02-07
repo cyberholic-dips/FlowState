@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator, Switch } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator, Switch, Animated, Easing } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../utils/storage';
@@ -52,9 +53,124 @@ export default function TodayScreen() {
     // Navigation
     const navigation = useNavigation();
 
+    // Animations
+    const headerScale = useRef(new Animated.Value(1)).current;
+    const sidebarX = useRef(new Animated.Value(-width * 0.8)).current;
+    const dragX = useRef(new Animated.Value(0)).current;
+    const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+    // Combined position for gesture support
+    const displayX = Animated.add(sidebarX, dragX);
+
+    // Dynamic backdrop opacity based on sidebar position
+    const dynamicBackdropOpacity = displayX.interpolate({
+        inputRange: [-width * 0.8, 0],
+        outputRange: [0, 1],
+        extrapolate: 'clamp'
+    });
+
+    const openSidebar = () => {
+        setIsSidebarVisible(true);
+        Animated.parallel([
+            Animated.timing(sidebarX, {
+                toValue: 0,
+                duration: 300,
+                easing: Easing.out(Easing.bezier(0.25, 0.1, 0.25, 1)),
+                useNativeDriver: true,
+            }),
+            Animated.timing(dragX, {
+                toValue: 0,
+                duration: 0,
+                useNativeDriver: true,
+            })
+        ]).start();
+    };
+
+    const closeSidebar = () => {
+        Animated.parallel([
+            Animated.timing(sidebarX, {
+                toValue: -width * 0.8,
+                duration: 250,
+                easing: Easing.in(Easing.bezier(0.25, 0.1, 0.25, 1)),
+                useNativeDriver: true,
+            }),
+            Animated.timing(dragX, {
+                toValue: 0,
+                duration: 0,
+                useNativeDriver: true,
+            })
+        ]).start(() => {
+            setIsSidebarVisible(false);
+        });
+    };
+
     const navigateToSection = (screenName) => {
-        setIsSidebarVisible(false);
+        closeSidebar();
         navigation.navigate(screenName);
+    };
+
+    const onHeaderPressIn = () => {
+        Animated.spring(headerScale, {
+            toValue: 0.96,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const onHeaderPressOut = () => {
+        Animated.spring(headerScale, {
+            toValue: 1,
+            friction: 4,
+            tension: 40,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const onPanGestureEvent = Animated.event(
+        [{ nativeEvent: { translationX: dragX } }],
+        { useNativeDriver: true }
+    );
+
+    const onHandlerStateChange = (event) => {
+        if (event.nativeEvent.state === State.ACTIVE && !isSidebarVisible) {
+            setIsSidebarVisible(true);
+        }
+
+        if (event.nativeEvent.oldState === State.ACTIVE) {
+            const { translationX, velocityX } = event.nativeEvent;
+            const totalX = (isSidebarVisible ? 0 : -width * 0.8) + translationX;
+
+            if (translationX > width * 0.2 || velocityX > 500) {
+                // Open
+                Animated.parallel([
+                    Animated.spring(sidebarX, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        tension: 40,
+                        friction: 8
+                    }),
+                    Animated.timing(dragX, {
+                        toValue: 0,
+                        duration: 0,
+                        useNativeDriver: true
+                    })
+                ]).start(() => setIsSidebarVisible(true));
+            } else {
+                // Close
+                Animated.parallel([
+                    Animated.spring(sidebarX, {
+                        toValue: -width * 0.8,
+                        useNativeDriver: true,
+                        tension: 40,
+                        friction: 8
+                    }),
+                    Animated.timing(dragX, {
+                        toValue: 0,
+                        duration: 0,
+                        useNativeDriver: true
+                    })
+                ]).start(() => setIsSidebarVisible(false));
+            }
+        }
     };
 
     const currentDateStr = today.toISOString().split('T')[0];
@@ -238,173 +354,186 @@ export default function TodayScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity
-                            onPress={() => setIsSidebarVisible(true)}
-                            style={[styles.profileHeader, {
-                                backgroundColor: theme.card,
-                                shadowColor: theme.shadow,
-                                borderColor: theme.border
-                            }]}
-                        >
-                            <View style={styles.profileSection}>
-                                <View style={[styles.avatar, { borderColor: theme.border }]}>
-                                    {userData.profileImage ? (
-                                        <Image source={userData.profileImage} style={styles.avatarImage} />
-                                    ) : (
-                                        <Ionicons name="person" size={24} color={theme.primary} />
-                                    )}
-                                </View>
-                                <View>
-                                    <Text style={[styles.dayLabel, { color: theme.subText }]}>{today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()}</Text>
-                                    <Text style={[styles.dateLabel, { color: theme.text }]}>{formatDate(today)}</Text>
-                                </View>
-                            </View>
-                            <Ionicons name="menu-outline" size={24} color={theme.text} style={{ marginLeft: 12 }} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={() => setIsModalVisible(true)}
-                        >
-                            <Ionicons name="add" size={28} color="white" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <Text style={[styles.greeting, { color: theme.text }]}>Good morning, {userData.name}.</Text>
-                    <Text style={[styles.subGreeting, { color: theme.subText }]}>Focus on your intentions for today.</Text>
-                </View>
-
-                {/* Quote of the Day */}
-                <View style={[styles.quoteContainer]}>
-                    <View style={[styles.quoteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                        {loadingQuote ? (
-                            <ActivityIndicator color={theme.primary} />
-                        ) : (
-                            <View>
-                                <View style={styles.quoteIconContainer}>
-                                    <Ionicons name="chatbox-ellipses-outline" size={20} color={theme.primary} />
-                                </View>
-                                <Text style={[styles.quoteText, { color: theme.text }]}>"{quote?.q}"</Text>
-                                <Text style={[styles.quoteAuthor, { color: theme.input === '#F3F4F6' ? theme.subText : theme.primary }]}>— {quote?.a}</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Week Calendar */}
-                <View style={styles.calendarStrip}>
-                    <View style={[styles.weekContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                        {weekDays.map((date, index) => {
-                            const isToday = date.toDateString() === today.toDateString();
-                            const hasActivity = (index <= 3); // Simulated
-                            return (
-                                <View key={index} style={styles.dayItem}>
-                                    <Text style={[styles.dayName, { color: isToday ? theme.primary : theme.subText }]}>{getDayName(date)}</Text>
-                                    <View style={[styles.dateCircle, isToday && { backgroundColor: theme.primary }]}>
-                                        <View style={[styles.dot, hasActivity && { backgroundColor: isToday ? 'white' : theme.primary }]} />
-                                        <Text style={[styles.dateNumber, { color: isToday ? 'white' : theme.text }]}>{date.getDate()}</Text>
-                                    </View>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
-
-                {/* Projects Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Tasks to Complete</Text>
-                        <TouchableOpacity
-                            onPress={() => setIsProjectModalVisible(true)}
-                            style={[styles.addSectionButton, { backgroundColor: theme.input }]}
-                        >
-                            <Ionicons name="add" size={20} color={theme.primary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {projects.length === 0 ? (
-                        <TouchableOpacity
-                            onPress={() => setIsProjectModalVisible(true)}
-                            style={[styles.emptyProjectCard, { borderColor: theme.border }]}
-                        >
-                            <Text style={{ color: theme.subText }}>Add a project or task deadline</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        projects.map((project) => {
-                            const daysLeft = calculateDaysLeft(project);
-                            const daysColor = getDaysLeftColor(daysLeft);
-                            const daysText = daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`;
-
-                            return (
-                                <View key={project.id} style={[styles.projectCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                                    <View style={styles.projectInfo}>
-                                        <Text style={[styles.projectName, { color: theme.text }]}>{project.name}</Text>
-                                        <Text style={[styles.projectDeadlineLabel, { color: theme.subText }]}>
-                                            Complete within: {project.durationDays} days
-                                        </Text>
-                                    </View>
-                                    <View style={{ alignItems: 'flex-end' }}>
-                                        <View style={[styles.daysLeftBadge, { backgroundColor: daysColor + '20' }]}>
-                                            <Text style={[styles.daysLeftText, { color: daysColor }]}>{daysText}</Text>
+            <PanGestureHandler
+                onGestureEvent={onPanGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                activeOffsetX={[0, 20]}
+            >
+                <View style={{ flex: 1 }}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <View style={styles.headerTop}>
+                                <Animated.View style={{ transform: [{ scale: headerScale }] }}>
+                                    <TouchableOpacity
+                                        onPress={openSidebar}
+                                        onPressIn={onHeaderPressIn}
+                                        onPressOut={onHeaderPressOut}
+                                        activeOpacity={1}
+                                        style={[styles.profileHeader, {
+                                            backgroundColor: theme.card,
+                                            shadowColor: theme.shadow,
+                                            borderColor: theme.border
+                                        }]}
+                                    >
+                                        <View style={styles.profileSection}>
+                                            <View style={[styles.avatar, { borderColor: theme.border }]}>
+                                                {userData.profileImage ? (
+                                                    <Image source={userData.profileImage} style={styles.avatarImage} />
+                                                ) : (
+                                                    <Ionicons name="person" size={24} color={theme.primary} />
+                                                )}
+                                            </View>
+                                            <View>
+                                                <Text style={[styles.dayLabel, { color: theme.subText }]}>{today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()}</Text>
+                                                <Text style={[styles.dateLabel, { color: theme.text }]}>{formatDate(today)}</Text>
+                                            </View>
                                         </View>
-                                        <TouchableOpacity
-                                            onPress={() => handleDeleteProject(project.id)}
-                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                            style={{ marginTop: 8 }}
-                                        >
-                                            <Ionicons name="trash-outline" size={16} color={theme.subText} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            );
-                        })
-                    )}
-                </View>
+                                        <Ionicons name="menu-outline" size={24} color={theme.text} style={{ marginLeft: 12 }} />
+                                    </TouchableOpacity>
+                                </Animated.View>
+                                <TouchableOpacity
+                                    style={styles.addButton}
+                                    onPress={() => setIsModalVisible(true)}
+                                >
+                                    <Ionicons name="add" size={28} color="white" />
+                                </TouchableOpacity>
+                            </View>
 
-                {/* Habits Section */}
-                <View style={styles.habitsSection}>
-                    <View style={styles.habitsHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Habits</Text>
-                        <View style={[styles.progressBadge, { backgroundColor: theme.tint + '20' }]}>
-                            <Text style={[styles.progressText, { color: theme.success }]}>{completedCount} of {habits.length} done</Text>
+                            <Text style={[styles.greeting, { color: theme.text }]}>Good morning, {userData.name}.</Text>
+                            <Text style={[styles.subGreeting, { color: theme.subText }]}>Focus on your intentions for today.</Text>
                         </View>
-                    </View>
 
-                    {habits.map((habit) => (
-                        <TouchableOpacity
-                            key={habit.id}
-                            style={[styles.habitCard, { backgroundColor: theme.card }]}
-                            onPress={() => toggleHabit(habit.id)}
-                            activeOpacity={0.7}
-                        >
-                            <View style={[styles.checkCircle, { borderColor: theme.border }, isCompleted(habit) && { backgroundColor: '#3B82F6', borderColor: '#3B82F6' }]}>
-                                {isCompleted(habit) && <Ionicons name="checkmark" size={20} color="white" />}
+                        {/* Quote of the Day */}
+                        <View style={[styles.quoteContainer]}>
+                            <View style={[styles.quoteCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                {loadingQuote ? (
+                                    <ActivityIndicator color={theme.primary} />
+                                ) : (
+                                    <View>
+                                        <View style={styles.quoteIconContainer}>
+                                            <Ionicons name="chatbox-ellipses-outline" size={20} color={theme.primary} />
+                                        </View>
+                                        <Text style={[styles.quoteText, { color: theme.text }]}>"{quote?.q}"</Text>
+                                        <Text style={[styles.quoteAuthor, { color: theme.input === '#F3F4F6' ? theme.subText : theme.primary }]}>— {quote?.a}</Text>
+                                    </View>
+                                )}
                             </View>
-                            <View style={styles.habitInfo}>
-                                <Text style={[styles.habitName, { color: theme.text }, isCompleted(habit) && styles.completedHabitName]}>
-                                    {habit.name}
-                                </Text>
-                                <View style={styles.streakInfo}>
-                                    <Ionicons name="flame" size={14} color={theme.warning} />
-                                    <Text style={[styles.streakText, { color: theme.subText }]}>
-                                        {habit.streak > 0 ? `${habit.streak} day streak` : 'New habit'}
-                                    </Text>
+                        </View>
+
+                        {/* Week Calendar */}
+                        <View style={styles.calendarStrip}>
+                            <View style={[styles.weekContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                {weekDays.map((date, index) => {
+                                    const isToday = date.toDateString() === today.toDateString();
+                                    const hasActivity = (index <= 3); // Simulated
+                                    return (
+                                        <View key={index} style={styles.dayItem}>
+                                            <Text style={[styles.dayName, { color: isToday ? theme.primary : theme.subText }]}>{getDayName(date)}</Text>
+                                            <View style={[styles.dateCircle, isToday && { backgroundColor: theme.primary }]}>
+                                                <View style={[styles.dot, hasActivity && { backgroundColor: isToday ? 'white' : theme.primary }]} />
+                                                <Text style={[styles.dateNumber, { color: isToday ? 'white' : theme.text }]}>{date.getDate()}</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+
+                        {/* Projects Section */}
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>Tasks to Complete</Text>
+                                <TouchableOpacity
+                                    onPress={() => setIsProjectModalVisible(true)}
+                                    style={[styles.addSectionButton, { backgroundColor: theme.input }]}
+                                >
+                                    <Ionicons name="add" size={20} color={theme.primary} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {projects.length === 0 ? (
+                                <TouchableOpacity
+                                    onPress={() => setIsProjectModalVisible(true)}
+                                    style={[styles.emptyProjectCard, { borderColor: theme.border }]}
+                                >
+                                    <Text style={{ color: theme.subText }}>Add a project or task deadline</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                projects.map((project) => {
+                                    const daysLeft = calculateDaysLeft(project);
+                                    const daysColor = getDaysLeftColor(daysLeft);
+                                    const daysText = daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`;
+
+                                    return (
+                                        <View key={project.id} style={[styles.projectCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                                            <View style={styles.projectInfo}>
+                                                <Text style={[styles.projectName, { color: theme.text }]}>{project.name}</Text>
+                                                <Text style={[styles.projectDeadlineLabel, { color: theme.subText }]}>
+                                                    Complete within: {project.durationDays} days
+                                                </Text>
+                                            </View>
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <View style={[styles.daysLeftBadge, { backgroundColor: daysColor + '20' }]}>
+                                                    <Text style={[styles.daysLeftText, { color: daysColor }]}>{daysText}</Text>
+                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => handleDeleteProject(project.id)}
+                                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                    style={{ marginTop: 8 }}
+                                                >
+                                                    <Ionicons name="trash-outline" size={16} color={theme.subText} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    );
+                                })
+                            )}
+                        </View>
+
+                        {/* Habits Section */}
+                        <View style={styles.habitsSection}>
+                            <View style={styles.habitsHeader}>
+                                <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Habits</Text>
+                                <View style={[styles.progressBadge, { backgroundColor: theme.tint + '20' }]}>
+                                    <Text style={[styles.progressText, { color: theme.success }]}>{completedCount} of {habits.length} done</Text>
                                 </View>
                             </View>
-                            <TouchableOpacity
-                                style={styles.menuButton}
-                                onPress={() => openOptions(habit)}
-                            >
-                                <Ionicons name="ellipsis-vertical" size={20} color={theme.inactiveTint} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    ))}
+
+                            {habits.map((habit) => (
+                                <TouchableOpacity
+                                    key={habit.id}
+                                    style={[styles.habitCard, { backgroundColor: theme.card }]}
+                                    onPress={() => toggleHabit(habit.id)}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[styles.checkCircle, { borderColor: theme.border }, isCompleted(habit) && { backgroundColor: '#3B82F6', borderColor: '#3B82F6' }]}>
+                                        {isCompleted(habit) && <Ionicons name="checkmark" size={20} color="white" />}
+                                    </View>
+                                    <View style={styles.habitInfo}>
+                                        <Text style={[styles.habitName, { color: theme.text }, isCompleted(habit) && styles.completedHabitName]}>
+                                            {habit.name}
+                                        </Text>
+                                        <View style={styles.streakInfo}>
+                                            <Ionicons name="flame" size={14} color={theme.warning} />
+                                            <Text style={[styles.streakText, { color: theme.subText }]}>
+                                                {habit.streak > 0 ? `${habit.streak} day streak` : 'New habit'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.menuButton}
+                                        onPress={() => openOptions(habit)}
+                                    >
+                                        <Ionicons name="ellipsis-vertical" size={20} color={theme.inactiveTint} />
+                                    </TouchableOpacity>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <View style={{ height: 40 }} />
+                    </ScrollView>
                 </View>
-                <View style={{ height: 40 }} />
-            </ScrollView>
+            </PanGestureHandler>
 
             {/* Add/Edit Habit Modal */}
             <Modal
@@ -539,20 +668,33 @@ export default function TodayScreen() {
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
-            {/* Sidebar Modal */}
-            <Modal
-                visible={isSidebarVisible}
-                animationType="fade"
-                transparent={true}
-                onRequestClose={() => setIsSidebarVisible(false)}
-            >
-                <View style={styles.sidebarOverlay}>
-                    <TouchableOpacity
-                        style={styles.sidebarBackdrop}
-                        activeOpacity={1}
-                        onPress={() => setIsSidebarVisible(false)}
-                    />
-                    <View style={[styles.sidebarContainer, { backgroundColor: theme.card }]}>
+
+            {/* Sidebar Custom Drawer */}
+            {isSidebarVisible && (
+                <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]}>
+                    <Animated.View
+                        style={[
+                            styles.sidebarOverlay,
+                            {
+                                opacity: dynamicBackdropOpacity,
+                            }
+                        ]}
+                    >
+                        <TouchableOpacity
+                            style={styles.sidebarBackdrop}
+                            activeOpacity={1}
+                            onPress={closeSidebar}
+                        />
+                    </Animated.View>
+                    <Animated.View
+                        style={[
+                            styles.sidebarContainer,
+                            {
+                                backgroundColor: theme.card,
+                                transform: [{ translateX: displayX }],
+                            }
+                        ]}
+                    >
                         <View style={styles.sidebarHeader}>
                             <View style={[styles.sidebarAvatar, { borderColor: theme.border }]}>
                                 {userData.profileImage ? (
@@ -562,7 +704,7 @@ export default function TodayScreen() {
                                 )}
                             </View>
                             <Text style={[styles.sidebarName, { color: theme.text }]}>{userData.name}</Text>
-                            <TouchableOpacity onPress={() => setIsSidebarVisible(false)} style={styles.closeSidebarButton}>
+                            <TouchableOpacity onPress={closeSidebar} style={styles.closeSidebarButton}>
                                 <Ionicons name="close" size={24} color={theme.text} />
                             </TouchableOpacity>
                         </View>
@@ -625,11 +767,10 @@ export default function TodayScreen() {
                                 />
                             </View>
                         </ScrollView>
-
-                    </View>
+                    </Animated.View>
                 </View>
-            </Modal>
-        </SafeAreaView >
+            )}
+        </SafeAreaView>
     );
 }
 
@@ -931,9 +1072,8 @@ const styles = StyleSheet.create({
     },
     // Sidebar Styles
     sidebarOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        flexDirection: 'row',
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.4)',
     },
     sidebarBackdrop: {
         flex: 1,

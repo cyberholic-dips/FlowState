@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Dimensions, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Dimensions, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { storage } from '../../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,6 +23,47 @@ const getLastSevenDays = () => {
     return days;
 };
 
+const AnimatedBar = ({ day, theme, index }) => {
+    const animatedHeight = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.timing(animatedHeight, {
+            toValue: Math.max(0.05, day.percentage),
+            duration: 1000,
+            delay: index * 100,
+            easing: Easing.bezier(0.4, 0, 0.2, 1),
+            useNativeDriver: false,
+        }).start();
+    }, [day.percentage]);
+
+    const barHeight = animatedHeight.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0%', '100%']
+    });
+
+    return (
+        <View style={styles.barWrapper}>
+            <View style={[styles.barBackground, { backgroundColor: theme.input }]}>
+                <Animated.View
+                    style={[
+                        styles.barFill,
+                        {
+                            height: barHeight,
+                            backgroundColor: theme.primary,
+                        }
+                    ]}
+                >
+                    <LinearGradient
+                        colors={[theme.primary, theme.primary + 'CC']}
+                        style={styles.barGradient}
+                    />
+                </Animated.View>
+            </View>
+            <Text style={[styles.barLabel, { color: theme.subText }]}>{day.dayName}</Text>
+        </View>
+    );
+};
+
 export default function StatsScreen() {
     const { theme } = useTheme();
     const [habits, setHabits] = useState([]);
@@ -32,6 +74,10 @@ export default function StatsScreen() {
         activeHabits: 0
     });
     const [focusSessions, setFocusSessions] = useState([]);
+    const [selectedDay, setSelectedDay] = useState(null);
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
 
     const calculateStats = useCallback((loadedHabits) => {
         const days = getLastSevenDays();
@@ -40,7 +86,6 @@ export default function StatsScreen() {
                 habit.completedDates && habit.completedDates.includes(day.dateStr)
             ).length;
 
-            // Percentage of completion for the day
             const percentage = loadedHabits.length > 0 ? (completedCount / loadedHabits.length) : 0;
             return {
                 ...day,
@@ -51,21 +96,16 @@ export default function StatsScreen() {
 
         setWeeklyData(activity);
 
-        // General stats
         const totalStreaks = loadedHabits.map(h => h.streak || 0);
         const bestStreak = totalStreaks.length > 0 ? Math.max(...totalStreaks) : 0;
 
-        // Average completion rate across all habits
-        let totalDaysTracked = 0;
         let totalCompletions = 0;
-
-        // For simplicity, let's assume a 30-day window or total completions
         loadedHabits.forEach(h => {
             totalCompletions += (h.completedDates?.length || 0);
         });
 
         setStats({
-            totalCompletion: loadedHabits.length > 0 ? Math.round((totalCompletions / (loadedHabits.length * 30)) * 100) : 0, // Mocked against 30 days
+            totalCompletion: loadedHabits.length > 0 ? Math.round((totalCompletions / (loadedHabits.length * 30)) * 100) : 0,
             bestStreak,
             activeHabits: loadedHabits.length
         });
@@ -77,6 +117,20 @@ export default function StatsScreen() {
         setHabits(storedHabits);
         setFocusSessions(storedSessions);
         calculateStats(storedHabits);
+
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 800,
+                easing: Easing.out(Easing.back(1.5)),
+                useNativeDriver: true,
+            })
+        ]).start();
     };
 
     const handleDeleteFocusSession = async (id) => {
@@ -102,95 +156,136 @@ export default function StatsScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                <View style={styles.header}>
+                <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <Text style={[styles.title, { color: theme.text }]}>Statistics</Text>
-                    <Text style={[styles.subtitle, { color: theme.subText }]}>Your consistency journey</Text>
-                </View>
+                    <Text style={[styles.subtitle, { color: theme.subText }]}>Visualizing your progress</Text>
+                </Animated.View>
 
-                {/* Main Highlight Card */}
-                <View style={[styles.highlightCard, { backgroundColor: theme.primary, shadowColor: theme.primary }]}>
-                    <View style={styles.highlightInfo}>
-                        <Text style={[styles.highlightLabel, { color: '#E5E7EB' }]}>Total Completion</Text>
-                        <Text style={styles.highlightValue}>{stats.totalCompletion}%</Text>
-                        <Text style={styles.highlightTrend}>
-                            <Ionicons name="trending-up" size={16} color="white" />
-                            <Text style={styles.trendText}> +12% from last week</Text>
-                        </Text>
-                    </View>
-                    <View style={styles.highlightIcon}>
-                        <Ionicons name="ribbon-outline" size={48} color="white" />
-                    </View>
-                </View>
+                {/* Main Highlight Card with Gradient */}
+                <Animated.View style={[styles.highlightCardContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                    <LinearGradient
+                        colors={[theme.primary, '#10B981']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.highlightCard}
+                    >
+                        <View style={styles.highlightInfo}>
+                            <Text style={[styles.highlightLabel, { color: 'rgba(255, 255, 255, 0.8)' }]}>Efficiency Score</Text>
+                            <Text style={styles.highlightValue}>{stats.totalCompletion}%</Text>
+                            <View style={styles.trendContainer}>
+                                <Ionicons name="sparkles" size={16} color="white" />
+                                <Text style={styles.trendText}> Keep it up! You're doing great</Text>
+                            </View>
+                        </View>
+                        <View style={styles.highlightIcon}>
+                            <View style={styles.iconCircle}>
+                                <Ionicons name="flash" size={32} color="white" />
+                            </View>
+                        </View>
+                    </LinearGradient>
+                </Animated.View>
 
-                {/* Weekly Activity Graph */}
-                <View style={styles.chartSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Activity</Text>
+                {/* Weekly Activity Section */}
+                <Animated.View style={[styles.chartSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Activity</Text>
+                        <TouchableOpacity onPress={() => setSelectedDay(null)}>
+                            <Text style={{ color: theme.primary, fontWeight: '600' }}>Last 7 Days</Text>
+                        </TouchableOpacity>
+                    </View>
                     <View style={[styles.chartContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
                         {weeklyData.map((day, index) => (
-                            <View key={index} style={styles.barWrapper}>
-                                <View style={[styles.barBackground, { backgroundColor: theme.input }]}>
-                                    <View
-                                        style={[
-                                            styles.barFill,
-                                            { height: `${Math.max(5, day.percentage * 100)}%`, backgroundColor: theme.primary }
-                                        ]}
-                                    />
-                                </View>
-                                <Text style={[styles.barLabel, { color: theme.subText }]}>{day.dayName}</Text>
-                            </View>
+                            <TouchableOpacity
+                                key={index}
+                                style={{ flex: 1 }}
+                                onPress={() => setSelectedDay(day)}
+                            >
+                                <AnimatedBar day={day} theme={theme} index={index} />
+                            </TouchableOpacity>
                         ))}
                     </View>
-                </View>
-
-                {/* Stats Grid */}
-                <View style={styles.statsGrid}>
-                    <View style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                        <View style={[styles.iconBox, { backgroundColor: '#DBEAFE' }]}>
-                            <Ionicons name="flame" size={20} color="#3B82F6" />
+                    {selectedDay && (
+                        <View style={[styles.tooltip, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                            <Text style={[styles.tooltipText, { color: theme.text }]}>
+                                {selectedDay.dayName}, {selectedDay.dayNum}: {selectedDay.completedCount} habits completed
+                            </Text>
                         </View>
+                    )}
+                </Animated.View>
+
+                {/* Stats Grid with Interactive Cards */}
+                <View style={styles.statsGrid}>
+                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                        <LinearGradient
+                            colors={['#DBEAFE', '#EFF6FF']}
+                            style={styles.iconBox}
+                        >
+                            <Ionicons name="flame" size={20} color="#3B82F6" />
+                        </LinearGradient>
                         <Text style={[styles.statsValue, { color: theme.text }]}>{stats.bestStreak}</Text>
                         <Text style={[styles.statsLabel, { color: theme.subText }]}>Best Streak</Text>
-                    </View>
-                    <View style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                        <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                        <LinearGradient
+                            colors={['#FEF3C7', '#FFFBEB']}
+                            style={styles.iconBox}
+                        >
                             <Ionicons name="list" size={20} color="#F59E0B" />
-                        </View>
+                        </LinearGradient>
                         <Text style={[styles.statsValue, { color: theme.text }]}>{stats.activeHabits}</Text>
                         <Text style={[styles.statsLabel, { color: theme.subText }]}>Active Habits</Text>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
-                {/* Habit Breakdown */}
-
+                {/* Habit Breakdown Section */}
                 <View style={styles.breakdownSection}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>Habit Breakdown</Text>
-                    {habits.map(habit => (
-                        <View key={habit.id} style={[styles.breakdownItem, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                    {habits.map((habit, index) => (
+                        <Animated.View
+                            key={habit.id}
+                            style={[
+                                styles.breakdownItem,
+                                {
+                                    backgroundColor: theme.card,
+                                    shadowColor: theme.shadow,
+                                    opacity: fadeAnim,
+                                    transform: [{ translateY: slideAnim }]
+                                }
+                            ]}
+                        >
                             <View style={styles.breakdownHeader}>
-                                <Text style={[styles.breakdownName, { color: theme.text }]}>{habit.name}</Text>
+                                <View style={styles.habitTitleRow}>
+                                    <View style={[styles.habitDot, { backgroundColor: theme.primary }]} />
+                                    <Text style={[styles.breakdownName, { color: theme.text }]}>{habit.name}</Text>
+                                </View>
                                 <Text style={[styles.breakdownPercent, { color: theme.primary }]}>
-                                    {habit.streak} day streak
+                                    {habit.streak}d streak
                                 </Text>
                             </View>
                             <View style={[styles.progressTrack, { backgroundColor: theme.input }]}>
-                                <View
+                                <LinearGradient
+                                    colors={[theme.primary, theme.primary + '80']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
                                     style={[
                                         styles.progressFill,
-                                        { width: `${Math.min(100, (habit.streak / 30) * 100)}%`, backgroundColor: theme.primary }
+                                        { width: `${Math.min(100, (habit.streak / 30) * 100)}%` }
                                     ]}
                                 />
                             </View>
-                        </View>
+                        </Animated.View>
                     ))}
                 </View>
 
                 {/* Focus Sessions Section */}
                 <View style={styles.focusSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Focus Sessions</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Focus History</Text>
                     {focusSessions.length === 0 ? (
                         <View style={[styles.emptyFocusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                            <Ionicons name="timer-outline" size={32} color={theme.subText} />
-                            <Text style={[styles.emptyFocusText, { color: theme.subText }]}>No focus sessions recorded yet (min. 30 mins)</Text>
+                            <Ionicons name="timer-outline" size={42} color={theme.subText} />
+                            <Text style={[styles.emptyFocusText, { color: theme.subText }]}>No sessions recorded yet</Text>
+                            <Text style={[styles.emptyFocusSubText, { color: theme.subText }]}>Stay focused for at least 30 mins to track</Text>
                         </View>
                     ) : (
                         focusSessions.map(session => (
@@ -202,7 +297,7 @@ export default function StatsScreen() {
                                     <View style={styles.focusTextContent}>
                                         <Text style={[styles.focusTitle, { color: theme.text }]}>{session.title}</Text>
                                         <Text style={[styles.focusMeta, { color: theme.subText }]}>
-                                            {new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} • {formatDuration(session.duration)}
+                                            {new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • {formatDuration(session.duration)}
                                         </Text>
                                     </View>
                                 </View>
@@ -227,90 +322,137 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
     },
     header: {
-        paddingTop: 20,
+        paddingTop: 24,
         paddingBottom: 24,
     },
     title: {
-        fontSize: 32,
-        fontWeight: '800',
-        letterSpacing: -0.5,
+        fontSize: 34,
+        fontWeight: '900',
+        letterSpacing: -1,
     },
     subtitle: {
-        fontSize: 18,
+        fontSize: 16,
         marginTop: 4,
+        opacity: 0.8,
+    },
+    highlightCardContainer: {
+        marginBottom: 32,
+        borderRadius: 24,
+        overflow: 'hidden',
+        elevation: 10,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
     },
     highlightCard: {
-        borderRadius: 24,
         padding: 24,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 32,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 15,
-        elevation: 8,
     },
     highlightLabel: {
         fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 4,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 8,
     },
     highlightValue: {
         color: 'white',
-        fontSize: 36,
-        fontWeight: '800',
-        marginBottom: 8,
+        fontSize: 44,
+        fontWeight: '900',
+        marginBottom: 12,
     },
-    highlightTrend: {
+    trendContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
     },
     trendText: {
-        color: '#D1FAE5',
+        color: 'white',
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
+    },
+    highlightIcon: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    iconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     chartSection: {
         marginBottom: 32,
     },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 20,
+        fontSize: 22,
+        fontWeight: '800',
     },
     chartContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        padding: 24,
+        padding: 20,
         borderRadius: 24,
-        height: 200,
+        height: 180,
+        elevation: 2,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
-        elevation: 2,
     },
     barWrapper: {
         alignItems: 'center',
-        flex: 1,
+        height: '100%',
+        justifyContent: 'flex-end',
     },
     barBackground: {
-        width: 12,
-        height: 120,
-        borderRadius: 6,
+        width: 14,
+        height: '80%',
+        borderRadius: 7,
         justifyContent: 'flex-end',
         marginBottom: 12,
+        overflow: 'hidden',
     },
     barFill: {
         width: '100%',
-        borderRadius: 6,
+        borderRadius: 7,
+        overflow: 'hidden',
+    },
+    barGradient: {
+        flex: 1,
     },
     barLabel: {
-        fontSize: 10,
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    tooltip: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    tooltipText: {
+        fontSize: 13,
         fontWeight: '600',
     },
     statsGrid: {
@@ -321,78 +463,108 @@ const styles = StyleSheet.create({
     statsCard: {
         borderRadius: 24,
         padding: 20,
-        width: (width - 64) / 2,
+        width: (width - 56) / 2,
+        elevation: 2,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
-        elevation: 2,
     },
     iconBox: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
+        width: 44,
+        height: 44,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
     },
     statsValue: {
-        fontSize: 24,
-        fontWeight: '800',
+        fontSize: 28,
+        fontWeight: '900',
         marginBottom: 4,
     },
     statsLabel: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
+        opacity: 0.7,
     },
     breakdownSection: {
-        marginBottom: 20,
+        marginBottom: 32,
     },
     breakdownItem: {
-        borderRadius: 20,
+        borderRadius: 24,
         padding: 20,
         marginBottom: 16,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
         elevation: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
     },
     breakdownHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
+    },
+    habitTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    habitDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 10,
     },
     breakdownName: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: '700',
     },
     breakdownPercent: {
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '800',
     },
     progressTrack: {
-        height: 8,
-        borderRadius: 4,
+        height: 10,
+        borderRadius: 5,
         overflow: 'hidden',
     },
     progressFill: {
         height: '100%',
-        borderRadius: 4,
+        borderRadius: 5,
     },
     focusSection: {
         marginBottom: 20,
+    },
+    emptyFocusCard: {
+        padding: 48,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderStyle: 'dashed',
+    },
+    emptyFocusText: {
+        marginTop: 16,
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    emptyFocusSubText: {
+        marginTop: 4,
+        fontSize: 13,
+        opacity: 0.6,
+        textAlign: 'center',
     },
     focusItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
-        borderRadius: 20,
+        padding: 18,
+        borderRadius: 24,
         marginBottom: 12,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
         elevation: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
     },
     focusInfo: {
         flexDirection: 'row',
@@ -400,9 +572,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     focusIconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 16,
+        width: 52,
+        height: 52,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -411,29 +583,16 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     focusTitle: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: '700',
         marginBottom: 4,
     },
     focusMeta: {
-        fontSize: 12,
-        fontWeight: '500',
+        fontSize: 13,
+        fontWeight: '600',
+        opacity: 0.6,
     },
     deleteButton: {
-        padding: 8,
+        padding: 10,
     },
-    emptyFocusCard: {
-        padding: 40,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderStyle: 'dashed',
-    },
-    emptyFocusText: {
-        marginTop: 12,
-        fontSize: 14,
-        textAlign: 'center',
-        fontWeight: '500',
-    }
 });

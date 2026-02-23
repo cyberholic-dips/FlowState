@@ -147,12 +147,15 @@ export const storage = {
 
     /**
      * Add a new note
+     * noteData: { title, content, tags }
      */
-    async addNote(noteContent) {
+    async addNote(noteData) {
         const notes = await this.getNotes();
         const newNote = {
             id: Date.now().toString(),
-            content: noteContent,
+            title: noteData.title || '',
+            content: noteData.content || (typeof noteData === 'string' ? noteData : ''),
+            tags: noteData.tags || [],
             createdAt: new Date().toISOString(),
         };
         const newNotes = [newNote, ...notes];
@@ -166,6 +169,21 @@ export const storage = {
     async deleteNote(noteId) {
         const notes = await this.getNotes();
         const updatedNotes = notes.filter(note => note.id !== noteId);
+        await this.saveNotes(updatedNotes);
+        return updatedNotes;
+    },
+
+    /**
+     * Update an existing note
+     */
+    async updateNote(noteId, updates) {
+        const notes = await this.getNotes();
+        const updatedNotes = notes.map(note => {
+            if (note.id === noteId) {
+                return { ...note, ...updates };
+            }
+            return note;
+        });
         await this.saveNotes(updatedNotes);
         return updatedNotes;
     },
@@ -271,6 +289,31 @@ export const storage = {
         const updatedSessions = sessions.filter(s => s.id !== sessionId);
         await this.saveFocusSessions(updatedSessions);
         return updatedSessions;
+    },
+
+    /**
+     * Get onboarding status
+     */
+    async getHasCompletedOnboarding() {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@has_completed_onboarding');
+            return jsonValue != null ? JSON.parse(jsonValue) : false;
+        } catch (e) {
+            console.error('Error reading onboarding status', e);
+            return false;
+        }
+    },
+
+    /**
+     * Save onboarding status
+     */
+    async saveHasCompletedOnboarding(status) {
+        try {
+            const jsonValue = JSON.stringify(status);
+            await AsyncStorage.setItem('@has_completed_onboarding', jsonValue);
+        } catch (e) {
+            console.error('Error saving onboarding status', e);
+        }
     }
 
 };

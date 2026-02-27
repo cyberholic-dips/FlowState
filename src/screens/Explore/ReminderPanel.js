@@ -97,7 +97,8 @@ const styles = StyleSheet.create({
         padding: 24,
         borderRadius: 28,
         borderWidth: 1,
-        height: 480,
+        minHeight: 360,
+        maxHeight: 520,
     },
     header: {
         flexDirection: 'row',

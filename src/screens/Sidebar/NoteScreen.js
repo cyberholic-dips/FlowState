@@ -20,6 +20,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { storage } from '../../utils/storage';
 
 const { width } = Dimensions.get('window');
+const PLAN_AGREEMENT_TEMPLATE_TITLE = 'योजना सम्झौता गरी पाउ ।';
+const PLAN_AGREEMENT_TEMPLATE_CONTENT = `बिषय :  योजना सम्झौता गरी पाउ ।
+
+उपरोक्त सम्बन्धमा यस आ.व. [ ]को योजना [ work title ],[place of work] ठेक्का न :[  ] को योजना  सम्झौता गरिदिनुहुन अनुरोध गर्दछौ ।`;
 
 export default function NoteScreen() {
     const { theme, isDark } = useTheme();
@@ -85,6 +89,11 @@ export default function NoteScreen() {
         setNoteTitle('');
         setNoteContent('');
         setNoteTags('');
+    };
+
+    const applyPlanAgreementTemplate = () => {
+        setNoteTitle(PLAN_AGREEMENT_TEMPLATE_TITLE);
+        setNoteContent(PLAN_AGREEMENT_TEMPLATE_CONTENT);
     };
 
     const handleDeleteNote = async (id) => {
@@ -315,6 +324,16 @@ export default function NoteScreen() {
                                     onChangeText={setNoteTitle}
                                 />
 
+                                <TouchableOpacity
+                                    style={[styles.templateButton, { backgroundColor: isDark ? theme.primary + '22' : '#ECFDF5' }]}
+                                    onPress={applyPlanAgreementTemplate}
+                                >
+                                    <Ionicons name="document-text-outline" size={16} color={isDark ? theme.primary : '#059669'} />
+                                    <Text style={[styles.templateButtonText, { color: isDark ? theme.primary : '#059669' }]}>
+                                        Use योजना सम्झौता template
+                                    </Text>
+                                </TouchableOpacity>
+
                                 <TextInput
                                     style={[styles.contentInput, { color: theme.text }]}
                                     placeholder="What are you thinking?"
@@ -530,6 +549,20 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         marginBottom: 15,
         paddingVertical: 10,
+    },
+    templateButton: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    templateButtonText: {
+        fontSize: 13,
+        fontWeight: '800',
     },
     contentInput: {
         flex: 1,

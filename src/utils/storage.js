@@ -241,6 +241,21 @@ export const storage = {
     },
 
     /**
+     * Update an existing project
+     */
+    async updateProject(projectId, updates) {
+        const projects = await this.getProjects();
+        const updatedProjects = projects.map(project => {
+            if (project.id === projectId) {
+                return { ...project, ...updates };
+            }
+            return project;
+        });
+        await this.saveProjects(updatedProjects);
+        return updatedProjects;
+    },
+
+    /**
      * Get all focus sessions
      */
     async getFocusSessions() {

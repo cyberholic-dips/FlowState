@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, Dimensions, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,6 +117,30 @@ export default function StatsScreen() {
         }, [])
     );
 
+    const heatmapMaxCount = useMemo(
+        () => heatmapData.reduce((max, item) => Math.max(max, item.count || 0), 0),
+        [heatmapData]
+    );
+
+    const heatmapShades = useMemo(() => {
+        if (theme.mode === 'dark') {
+            return ['#0B1220', '#172554', '#1D4ED8', '#2563EB', '#60A5FA'];
+        }
+        return ['#EFF6FF', '#DBEAFE', '#93C5FD', '#3B82F6', '#1D4ED8'];
+    }, [theme.mode]);
+
+    const getGitHubHeatColor = useCallback((value) => {
+        const count = value?.count || 0;
+        if (count <= 0) return heatmapShades[0];
+        if (heatmapMaxCount <= 1) return heatmapShades[4];
+
+        const intensity = count / heatmapMaxCount;
+        if (intensity >= 0.75) return heatmapShades[4];
+        if (intensity >= 0.5) return heatmapShades[3];
+        if (intensity >= 0.25) return heatmapShades[2];
+        return heatmapShades[1];
+    }, [heatmapMaxCount, heatmapShades]);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -156,13 +180,13 @@ export default function StatsScreen() {
                         <Text style={{ color: theme.primary, fontWeight: '600' }}>Last 90 Days</Text>
                     </View>
                     <View style={[styles.chartContainer, { backgroundColor: theme.glassBackground, borderColor: theme.glassBorder, borderWidth: 1, shadowColor: theme.shadow, paddingLeft: 0, paddingRight: 0 }]}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}>
                             <ContributionGraph
                                 values={heatmapData}
                                 endDate={new Date()}
                                 numDays={90}
-                                width={width * 1.5}
-                                height={220}
+                                width={width * 1.45}
+                                height={170}
                                 chartConfig={{
                                     backgroundColor: 'transparent',
                                     backgroundGradientFrom: theme.glassBackground,
@@ -170,27 +194,35 @@ export default function StatsScreen() {
                                     backgroundGradientFromOpacity: 0,
                                     backgroundGradientToOpacity: 0,
                                     color: (opacity = 1) => theme.primary.startsWith('#') ? hexToRgba(theme.primary, opacity) : `rgba(50, 150, 255, ${opacity})`,
-                                    labelColor: (opacity = 1) => theme.subText.startsWith('#') ? hexToRgba(theme.subText, opacity) : `rgba(150, 150, 150, ${opacity})`,
+                                    labelColor: (opacity = 1) => theme.subText.startsWith('#') ? hexToRgba(theme.subText, Math.max(opacity, 0.85)) : `rgba(150, 150, 150, ${opacity})`,
                                     style: { borderRadius: 16 },
                                     propsForLabels: {
-                                        fontSize: 10,
+                                        fontSize: 9,
                                         fontWeight: '500'
                                     }
                                 }}
                                 tooltipDataAttrs={(value) => ({
                                     'data-tooltip': value.date ? `${value.date}: ${value.count} habits` : 'No data'
                                 })}
-                                getColor={(value) => {
-                                    if (!value || value.count === 0) return theme.input; // empty background color
-                                    return theme.primary; // Or calculate opacity based on value.count
-                                }}
-                                squareSize={20}
+                                getColor={getGitHubHeatColor}
+                                squareSize={12}
+                                gutterSize={3}
                                 style={{
-                                    marginVertical: 8,
+                                    marginVertical: 6,
                                     borderRadius: 16
                                 }}
                             />
                         </ScrollView>
+                        <View style={styles.heatLegendRow}>
+                            <Text style={[styles.heatLegendText, { color: theme.subText }]}>Less</Text>
+                            {heatmapShades.map((shade, index) => (
+                                <View
+                                    key={index}
+                                    style={[styles.heatLegendSquare, { backgroundColor: shade, borderColor: theme.border }]}
+                                />
+                            ))}
+                            <Text style={[styles.heatLegendText, { color: theme.subText }]}>More</Text>
+                        </View>
                     </View>
                 </Animated.View>
 
@@ -391,16 +423,31 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     chartContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        padding: 20,
+        paddingVertical: 12,
+        paddingBottom: 14,
         borderRadius: 24,
-        height: 180,
         elevation: 2,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
+    },
+    heatLegendRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 18,
+        paddingTop: 4,
+        gap: 6,
+    },
+    heatLegendText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    heatLegendSquare: {
+        width: 11,
+        height: 11,
+        borderRadius: 2,
+        borderWidth: 0.5,
     },
     barWrapper: {
         alignItems: 'center',

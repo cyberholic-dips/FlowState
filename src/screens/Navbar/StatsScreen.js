@@ -1,100 +1,64 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, Dimensions, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { storage } from '../../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { ContributionGraph } from 'react-native-chart-kit';
 import { useTheme } from '../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-// Helper to get last 7 days including today
-const getLastSevenDays = () => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        days.push({
-            dateStr: d.toISOString().split('T')[0],
-            dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
-            dayNum: d.getDate()
-        });
-    }
-    return days;
+// Helper to get exactly 90 days ago for the heatmap
+const getStartDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return d;
 };
 
-const AnimatedBar = ({ day, theme, index }) => {
-    const animatedHeight = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        Animated.timing(animatedHeight, {
-            toValue: Math.max(0.05, day.percentage),
-            duration: 1000,
-            delay: index * 100,
-            easing: Easing.bezier(0.4, 0, 0.2, 1),
-            useNativeDriver: false,
-        }).start();
-    }, [day.percentage]);
-
-    const barHeight = animatedHeight.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['0%', '100%']
-    });
-
-    return (
-        <View style={styles.barWrapper}>
-            <View style={[styles.barBackground, { backgroundColor: theme.input }]}>
-                <Animated.View
-                    style={[
-                        styles.barFill,
-                        {
-                            height: barHeight,
-                            backgroundColor: theme.primary,
-                        }
-                    ]}
-                >
-                    <LinearGradient
-                        colors={[theme.primary, theme.primary + 'CC']}
-                        style={styles.barGradient}
-                    />
-                </Animated.View>
-            </View>
-            <Text style={[styles.barLabel, { color: theme.subText }]}>{day.dayName}</Text>
-        </View>
-    );
+// Helper to convert hex to rgba
+const hexToRgba = (hex, opacity = 1) => {
+    let rawHex = hex.replace('#', '');
+    if (rawHex.length === 3) {
+        rawHex = rawHex.split('').map(char => char + char).join('');
+    }
+    const r = parseInt(rawHex.slice(0, 2), 16) || 0;
+    const g = parseInt(rawHex.slice(2, 4), 16) || 0;
+    const b = parseInt(rawHex.slice(4, 6), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
 export default function StatsScreen() {
     const { theme } = useTheme();
     const [habits, setHabits] = useState([]);
-    const [weeklyData, setWeeklyData] = useState([]);
+    const [heatmapData, setHeatmapData] = useState([]);
     const [stats, setStats] = useState({
         totalCompletion: 0,
         bestStreak: 0,
         activeHabits: 0
     });
     const [focusSessions, setFocusSessions] = useState([]);
-    const [selectedDay, setSelectedDay] = useState(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(20)).current;
 
     const calculateStats = useCallback((loadedHabits) => {
-        const days = getLastSevenDays();
-        const activity = days.map(day => {
-            const completedCount = loadedHabits.filter(habit =>
-                habit.completedDates && habit.completedDates.includes(day.dateStr)
-            ).length;
-
-            const percentage = loadedHabits.length > 0 ? (completedCount / loadedHabits.length) : 0;
-            return {
-                ...day,
-                completedCount,
-                percentage
-            };
+        // Calculate Heatmap Data
+        const dateCounts = {};
+        loadedHabits.forEach(habit => {
+            if (habit.completedDates) {
+                habit.completedDates.forEach(dateStr => {
+                    dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
+                });
+            }
         });
 
-        setWeeklyData(activity);
+        const formattedHeatmapData = Object.keys(dateCounts).map(date => ({
+            date,
+            count: dateCounts[date]
+        }));
+
+        setHeatmapData(formattedHeatmapData);
 
         const totalStreaks = loadedHabits.map(h => h.streak || 0);
         const bestStreak = totalStreaks.length > 0 ? Math.max(...totalStreaks) : 0;
@@ -153,6 +117,30 @@ export default function StatsScreen() {
         }, [])
     );
 
+    const heatmapMaxCount = useMemo(
+        () => heatmapData.reduce((max, item) => Math.max(max, item.count || 0), 0),
+        [heatmapData]
+    );
+
+    const heatmapShades = useMemo(() => {
+        if (theme.mode === 'dark') {
+            return ['#0B1220', '#172554', '#1D4ED8', '#2563EB', '#60A5FA'];
+        }
+        return ['#EFF6FF', '#DBEAFE', '#93C5FD', '#3B82F6', '#1D4ED8'];
+    }, [theme.mode]);
+
+    const getGitHubHeatColor = useCallback((value) => {
+        const count = value?.count || 0;
+        if (count <= 0) return heatmapShades[0];
+        if (heatmapMaxCount <= 1) return heatmapShades[4];
+
+        const intensity = count / heatmapMaxCount;
+        if (intensity >= 0.75) return heatmapShades[4];
+        if (intensity >= 0.5) return heatmapShades[3];
+        if (intensity >= 0.25) return heatmapShades[2];
+        return heatmapShades[1];
+    }, [heatmapMaxCount, heatmapShades]);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -164,17 +152,17 @@ export default function StatsScreen() {
                 {/* Main Highlight Card with Gradient */}
                 <Animated.View style={[styles.highlightCardContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <LinearGradient
-                        colors={[theme.primary, '#10B981']}
+                        colors={[theme.primary, theme.secondary]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.highlightCard}
                     >
                         <View style={styles.highlightInfo}>
-                            <Text style={[styles.highlightLabel, { color: 'rgba(255, 255, 255, 0.8)' }]}>Efficiency Score</Text>
+                            <Text style={[styles.highlightLabel, { color: 'rgba(255, 255, 255, 0.9)' }]}>Efficiency Score</Text>
                             <Text style={styles.highlightValue}>{stats.totalCompletion}%</Text>
                             <View style={styles.trendContainer}>
                                 <Ionicons name="sparkles" size={16} color="white" />
-                                <Text style={styles.trendText}> Keep it up! You're doing great</Text>
+                                <Text style={styles.trendText}> Keep it up! You're thriving</Text>
                             </View>
                         </View>
                         <View style={styles.highlightIcon}>
@@ -185,53 +173,78 @@ export default function StatsScreen() {
                     </LinearGradient>
                 </Animated.View>
 
-                {/* Weekly Activity Section */}
+                {/* Activity Heatmap Section */}
                 <Animated.View style={[styles.chartSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Weekly Activity</Text>
-                        <TouchableOpacity onPress={() => setSelectedDay(null)}>
-                            <Text style={{ color: theme.primary, fontWeight: '600' }}>Last 7 Days</Text>
-                        </TouchableOpacity>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>Activity Map</Text>
+                        <Text style={{ color: theme.primary, fontWeight: '600' }}>Last 90 Days</Text>
                     </View>
-                    <View style={[styles.chartContainer, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                        {weeklyData.map((day, index) => (
-                            <TouchableOpacity
-                                key={index}
-                                style={{ flex: 1 }}
-                                onPress={() => setSelectedDay(day)}
-                            >
-                                <AnimatedBar day={day} theme={theme} index={index} />
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                    {selectedDay && (
-                        <View style={[styles.tooltip, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                            <Text style={[styles.tooltipText, { color: theme.text }]}>
-                                {selectedDay.dayName}, {selectedDay.dayNum}: {selectedDay.completedCount} habits completed
-                            </Text>
+                    <View style={[styles.chartContainer, { backgroundColor: theme.glassBackground, borderColor: theme.glassBorder, borderWidth: 1, shadowColor: theme.shadow, paddingLeft: 0, paddingRight: 0 }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                            <ContributionGraph
+                                values={heatmapData}
+                                endDate={new Date()}
+                                numDays={90}
+                                width={width * 1.45}
+                                height={170}
+                                chartConfig={{
+                                    backgroundColor: 'transparent',
+                                    backgroundGradientFrom: theme.glassBackground,
+                                    backgroundGradientTo: theme.glassBackground,
+                                    backgroundGradientFromOpacity: 0,
+                                    backgroundGradientToOpacity: 0,
+                                    color: (opacity = 1) => theme.primary.startsWith('#') ? hexToRgba(theme.primary, opacity) : `rgba(50, 150, 255, ${opacity})`,
+                                    labelColor: (opacity = 1) => theme.subText.startsWith('#') ? hexToRgba(theme.subText, Math.max(opacity, 0.85)) : `rgba(150, 150, 150, ${opacity})`,
+                                    style: { borderRadius: 16 },
+                                    propsForLabels: {
+                                        fontSize: 9,
+                                        fontWeight: '500'
+                                    }
+                                }}
+                                tooltipDataAttrs={(value) => ({
+                                    'data-tooltip': value.date ? `${value.date}: ${value.count} habits` : 'No data'
+                                })}
+                                getColor={getGitHubHeatColor}
+                                squareSize={12}
+                                gutterSize={3}
+                                style={{
+                                    marginVertical: 6,
+                                    borderRadius: 16
+                                }}
+                            />
+                        </ScrollView>
+                        <View style={styles.heatLegendRow}>
+                            <Text style={[styles.heatLegendText, { color: theme.subText }]}>Less</Text>
+                            {heatmapShades.map((shade, index) => (
+                                <View
+                                    key={index}
+                                    style={[styles.heatLegendSquare, { backgroundColor: shade, borderColor: theme.border }]}
+                                />
+                            ))}
+                            <Text style={[styles.heatLegendText, { color: theme.subText }]}>More</Text>
                         </View>
-                    )}
+                    </View>
                 </Animated.View>
 
                 {/* Stats Grid with Interactive Cards */}
                 <View style={styles.statsGrid}>
-                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.glassBackground, borderColor: theme.glassBorder, borderWidth: 1, shadowColor: theme.shadow }]}>
                         <LinearGradient
-                            colors={['#DBEAFE', '#EFF6FF']}
+                            colors={[theme.primary + '20', theme.primary + '10']}
                             style={styles.iconBox}
                         >
-                            <Ionicons name="flame" size={20} color="#3B82F6" />
+                            <Ionicons name="flame" size={20} color={theme.primary} />
                         </LinearGradient>
                         <Text style={[styles.statsValue, { color: theme.text }]}>{stats.bestStreak}</Text>
                         <Text style={[styles.statsLabel, { color: theme.subText }]}>Best Streak</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+                    <TouchableOpacity style={[styles.statsCard, { backgroundColor: theme.glassBackground, borderColor: theme.glassBorder, borderWidth: 1, shadowColor: theme.shadow }]}>
                         <LinearGradient
-                            colors={['#FEF3C7', '#FFFBEB']}
+                            colors={[theme.secondary + '20', theme.secondary + '10']}
                             style={styles.iconBox}
                         >
-                            <Ionicons name="list" size={20} color="#F59E0B" />
+                            <Ionicons name="list" size={20} color={theme.secondary} />
                         </LinearGradient>
                         <Text style={[styles.statsValue, { color: theme.text }]}>{stats.activeHabits}</Text>
                         <Text style={[styles.statsLabel, { color: theme.subText }]}>Active Habits</Text>
@@ -247,7 +260,9 @@ export default function StatsScreen() {
                             style={[
                                 styles.breakdownItem,
                                 {
-                                    backgroundColor: theme.card,
+                                    backgroundColor: theme.glassBackground,
+                                    borderColor: theme.glassBorder,
+                                    borderWidth: 1,
                                     shadowColor: theme.shadow,
                                     opacity: fadeAnim,
                                     transform: [{ translateY: slideAnim }]
@@ -408,16 +423,31 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     chartContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        padding: 20,
+        paddingVertical: 12,
+        paddingBottom: 14,
         borderRadius: 24,
-        height: 180,
         elevation: 2,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
+    },
+    heatLegendRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 18,
+        paddingTop: 4,
+        gap: 6,
+    },
+    heatLegendText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    heatLegendSquare: {
+        width: 11,
+        height: 11,
+        borderRadius: 2,
+        borderWidth: 0.5,
     },
     barWrapper: {
         alignItems: 'center',

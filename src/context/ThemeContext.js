@@ -6,36 +6,42 @@ const ThemeContext = createContext();
 
 export const lightTheme = {
     mode: 'light',
-    primary: '#34D399',
-    background: '#F9FAFB',
+    primary: '#6366F1', // Vibrant Indigo
+    secondary: '#EC4899', // Pink
+    background: '#F0F2F5',
     card: '#FFFFFF',
-    text: '#1F2937',
-    subText: '#6B7280',
-    border: '#E5E7EB',
-    input: '#F3F4F6',
-    tabBar: '#FFFFFF',
-    tint: '#34D399',
-    inactiveTint: '#9CA3AF',
-    danger: '#EF4444',
+    text: '#0F172A',
+    subText: '#64748B',
+    border: '#E2E8F0',
+    input: '#F8FAFC',
+    tabBar: '#FFFFFFCC', // Semi-transparent
+    tint: '#6366F1',
+    inactiveTint: '#94A3B8',
+    danger: '#F43F5E',
     success: '#10B981',
     warning: '#F59E0B',
+    glassBackground: '#FFFFFF',
+    glassBorder: '#E2E8F0',
 };
 
 export const darkTheme = {
     mode: 'dark',
-    primary: '#34D399',
-    background: '#111827',
-    card: '#1F2937',
-    text: '#F9FAFB',
-    subText: '#9CA3AF',
-    border: '#374151',
-    input: '#374151',
-    tabBar: '#1F2937',
-    tint: '#34D399',
-    inactiveTint: '#6B7280',
-    danger: '#EF4444',
-    success: '#10B981',
-    warning: '#F59E0B',
+    primary: '#818CF8', // Soft Indigo
+    secondary: '#F472B6', // Soft Pink
+    background: '#0F172A', // Dark Slate 900
+    card: '#1E293B', // Dark Slate 800
+    text: '#F8FAFC',
+    subText: '#94A3B8',
+    border: '#334155',
+    input: '#334155',
+    tabBar: '#1E293BCC', // Semi-transparent
+    tint: '#818CF8',
+    inactiveTint: '#64748B',
+    danger: '#FB7185',
+    success: '#34D399',
+    warning: '#FBBF24',
+    glassBackground: '#1E293B',
+    glassBorder: '#334155',
 };
 
 export const ThemeProvider = ({ children }) => {

@@ -22,9 +22,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WebView } from "react-native-webview";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../context/ThemeContext";
+import { fetchWithTimeout } from "../../utils/network";
 
 const { width } = Dimensions.get("window");
 const CRYPTO_CACHE_KEY = "crypto-hub-cache";
+const REQUEST_TIMEOUT_MS = 12000;
 
 const decodeHtmlEntities = (text) => {
     if (!text) return "";
@@ -63,18 +65,23 @@ const formatRelativeTime = (dateString) => {
 
 const fetchPrices = async () => {
     try {
-        const response = await fetch(
-            "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=12&page=1&sparkline=false&price_change_percentage=24h"
+        const response = await fetchWithTimeout(
+            "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=12&page=1&sparkline=false&price_change_percentage=24h",
+            {},
+            REQUEST_TIMEOUT_MS
         );
-        return await response.json();
+        if (!response.ok) return null;
+        const data = await response.json();
+        return Array.isArray(data) ? data : null;
     } catch (e) {
-        return [];
+        return null;
     }
 };
 
 const fetchNews = async () => {
     try {
-        const response = await fetch("https://www.coindesk.com/arc/outboundfeeds/rss");
+        const response = await fetchWithTimeout("https://www.coindesk.com/arc/outboundfeeds/rss", {}, REQUEST_TIMEOUT_MS);
+        if (!response.ok) return null;
         const xml = await response.text();
         const items = [];
         const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -97,7 +104,7 @@ const fetchNews = async () => {
             });
         }
         return items;
-    } catch (e) { return []; }
+    } catch (e) { return null; }
 };
 
 export default function CryptoScreen() {
@@ -125,14 +132,67 @@ export default function CryptoScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [readingItem, setReadingItem] = useState(null);
+    const [dataNotice, setDataNotice] = useState("");
 
     const loadData = async (isRefresh = false) => {
         if (!isRefresh) setLoading(true);
+        setDataNotice("");
+        let cachedData = null;
+
+        try {
+            const cached = await AsyncStorage.getItem(CRYPTO_CACHE_KEY);
+            if (cached) {
+                cachedData = JSON.parse(cached);
+                if (Array.isArray(cachedData?.prices) && cachedData.prices.length > 0 && (!isRefresh || prices.length === 0)) {
+                    setPrices(cachedData.prices);
+                }
+                if (Array.isArray(cachedData?.news) && cachedData.news.length > 0 && (!isRefresh || news.length === 0)) {
+                    setNews(cachedData.news);
+                }
+            }
+        } catch (e) {
+            cachedData = null;
+        }
 
         const [priceData, newsData] = await Promise.all([fetchPrices(), fetchNews()]);
 
-        if (priceData && priceData.length > 0) setPrices(priceData);
-        if (newsData && newsData.length > 0) setNews(newsData);
+        let nextPrices = Array.isArray(cachedData?.prices) ? cachedData.prices : prices;
+        let nextNews = Array.isArray(cachedData?.news) ? cachedData.news : news;
+        let hadLiveUpdates = false;
+
+        if (Array.isArray(priceData) && priceData.length > 0) {
+            setPrices(priceData);
+            nextPrices = priceData;
+            hadLiveUpdates = true;
+        }
+        if (Array.isArray(newsData) && newsData.length > 0) {
+            setNews(newsData);
+            nextNews = newsData;
+            hadLiveUpdates = true;
+        }
+
+        if (!hadLiveUpdates) {
+            if (nextPrices.length > 0 || nextNews.length > 0) {
+                setDataNotice("Live fetch failed. Showing saved market data.");
+            } else {
+                setDataNotice("Unable to load live market data right now.");
+            }
+        }
+
+        if (nextPrices.length > 0 || nextNews.length > 0) {
+            try {
+                await AsyncStorage.setItem(
+                    CRYPTO_CACHE_KEY,
+                    JSON.stringify({
+                        prices: nextPrices,
+                        news: nextNews,
+                        updatedAt: new Date().toISOString(),
+                    })
+                );
+            } catch (e) {
+                // Ignore cache write failure.
+            }
+        }
 
         setLoading(false);
     };
@@ -246,6 +306,9 @@ export default function CryptoScreen() {
                             <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
                             <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Live Markets & News</Text>
                         </View>
+                        {!!dataNotice && (
+                            <Text style={[styles.dataNotice, { color: colors.textSecondary }]}>{dataNotice}</Text>
+                        )}
                     </View>
                     <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: colors.input }]} onPress={() => loadData(true)}>
                         <Ionicons name="flash" size={18} color={colors.primary} />
@@ -280,6 +343,11 @@ export default function CryptoScreen() {
                         <View key={i} style={[styles.priceCard, { backgroundColor: colors.surface, opacity: 0.6, width: 140, height: 100 }]} />
                     ))}
                     {!loading && prices.map((item) => <PriceCard key={item.id} item={item} />)}
+                    {!loading && prices.length === 0 && (
+                        <View style={[styles.emptyInlineCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <Text style={[styles.emptyInlineText, { color: colors.textSecondary }]}>Market leaders are temporarily unavailable.</Text>
+                        </View>
+                    )}
                 </ScrollView>
 
                 <View style={styles.sectionHeader}>
@@ -289,6 +357,11 @@ export default function CryptoScreen() {
                 <View style={styles.newsList}>
                     {loading && <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />}
                     {!loading && news.map((item, index) => renderNewsItem({ item, index }))}
+                    {!loading && news.length === 0 && (
+                        <View style={[styles.emptyInlineCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <Text style={[styles.emptyInlineText, { color: colors.textSecondary }]}>No crypto stories available right now.</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={{ height: 100 }} />
@@ -329,12 +402,23 @@ const createStyles = (colors) =>
         liveIndicatiorRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
         liveDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
         headerSubtitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+        dataNotice: { marginTop: 6, fontSize: 12, fontWeight: '600' },
         refreshBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
         scrollView: { flex: 1 },
         sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginTop: 24, marginBottom: 12 },
         sectionTitle: { fontSize: 20, fontWeight: '800' },
         seeAll: { fontSize: 14, fontWeight: '700' },
         priceList: { paddingHorizontal: 20 },
+        emptyInlineCard: {
+            width: width - 48,
+            minHeight: 94,
+            borderRadius: 18,
+            borderWidth: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 16,
+        },
+        emptyInlineText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
         priceCard: { width: 150, padding: 16, borderRadius: 24, marginRight: 12, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
         priceCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
         coinIcon: { width: 32, height: 32, borderRadius: 16, marginRight: 10 },

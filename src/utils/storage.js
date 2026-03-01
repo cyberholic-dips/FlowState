@@ -1,8 +1,199 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const HABITS_KEY = '@habits_data';
+const FOCUS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const SETTINGS_KEY = '@settings_data';
+const PROJECTS_KEY = '@projects_data';
+const FOCUS_SESSIONS_KEY = '@focus_sessions';
+const ONBOARDING_KEY = '@has_completed_onboarding';
+const STORAGE_SCHEMA_KEY = '@storage_schema_version';
+const CURRENT_STORAGE_SCHEMA_VERSION = 1;
+const BACKUP_SCHEMA_VERSION = 1;
+const BACKUP_KEYS = [
+    HABITS_KEY,
+    SETTINGS_KEY,
+    PROJECTS_KEY,
+    FOCUS_SESSIONS_KEY,
+    ONBOARDING_KEY,
+    STORAGE_SCHEMA_KEY,
+];
+
+const isValidDateString = (value) => {
+    if (typeof value !== 'string') return false;
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms);
+};
+
+const toIsoDate = (value, fallback = new Date().toISOString()) => {
+    if (typeof value === 'string' && isValidDateString(value)) {
+        return new Date(value).toISOString();
+    }
+    if (value instanceof Date && Number.isFinite(value.getTime())) {
+        return value.toISOString();
+    }
+    return fallback;
+};
+
+const normalizeCompletedDates = (completedDates) => {
+    if (!Array.isArray(completedDates)) return [];
+    const unique = new Set();
+
+    completedDates.forEach((dateLike) => {
+        if (typeof dateLike !== 'string') return;
+        const onlyDate = dateLike.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(onlyDate)) {
+            unique.add(onlyDate);
+        }
+    });
+
+    return Array.from(unique).sort();
+};
+
+const normalizeHabits = (habits) => {
+    if (!Array.isArray(habits)) return [];
+    return habits.map((habit, index) => ({
+        ...habit,
+        id: `${habit?.id ?? `habit-${Date.now()}-${index}`}`,
+        name: typeof habit?.name === 'string' && habit.name.trim()
+            ? habit.name.trim()
+            : (typeof habit?.title === 'string' && habit.title.trim() ? habit.title.trim() : 'Habit'),
+        streak: Number.isFinite(Number(habit?.streak)) ? Math.max(0, Number(habit.streak)) : 0,
+        completedDates: normalizeCompletedDates(habit?.completedDates),
+    }));
+};
+
+const normalizeProjects = (projects) => {
+    if (!Array.isArray(projects)) return [];
+    return projects.map((project, index) => ({
+        ...project,
+        id: `${project?.id ?? `project-${Date.now()}-${index}`}`,
+        name: typeof project?.name === 'string' && project.name.trim() ? project.name.trim() : 'Project',
+        durationDays: Number.isFinite(Number(project?.durationDays)) ? Math.max(1, Number(project.durationDays)) : 1,
+        createdAt: toIsoDate(project?.createdAt),
+    }));
+};
+
+const normalizeFocusSessions = (sessions) => {
+    if (!Array.isArray(sessions)) return [];
+    return sessions
+        .map((session, index) => ({
+            ...session,
+            id: `${session?.id ?? `focus-${Date.now()}-${index}`}`,
+            title: typeof session?.title === 'string' && session.title.trim() ? session.title.trim() : 'Focus Session',
+            duration: Number.isFinite(Number(session?.duration)) ? Math.max(0, Number(session.duration)) : 0,
+            createdAt: toIsoDate(session?.createdAt),
+        }))
+        .filter((session) => {
+            const createdAtMs = new Date(session.createdAt).getTime();
+            return Number.isFinite(createdAtMs);
+        });
+};
+
+const normalizeSettings = (settings) => {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+        return {};
+    }
+
+    const nextSettings = { ...settings };
+
+    if (nextSettings.user && typeof nextSettings.user === 'object' && !Array.isArray(nextSettings.user)) {
+        nextSettings.user = {
+            ...nextSettings.user,
+            birthDate: isValidDateString(nextSettings.user.birthDate)
+                ? new Date(nextSettings.user.birthDate).toISOString()
+                : nextSettings.user.birthDate,
+        };
+    }
+
+    const lifeIndex = nextSettings.lifeIndex;
+    if (lifeIndex && typeof lifeIndex === 'object' && !Array.isArray(lifeIndex)) {
+        nextSettings.lifeIndex = {
+            ...lifeIndex,
+            birthDate: isValidDateString(lifeIndex.birthDate)
+                ? new Date(lifeIndex.birthDate).toISOString()
+                : lifeIndex.birthDate,
+            lifeExpectancy: Number.isFinite(Number(lifeIndex.lifeExpectancy))
+                ? Math.max(30, Math.min(120, Number(lifeIndex.lifeExpectancy)))
+                : lifeIndex.lifeExpectancy,
+            events: Array.isArray(lifeIndex.events)
+                ? lifeIndex.events.map((event, index) => ({
+                    ...event,
+                    id: `${event?.id ?? `life-event-${Date.now()}-${index}`}`,
+                    title: typeof event?.title === 'string' && event.title.trim() ? event.title.trim() : 'Event',
+                    date: toIsoDate(event?.date),
+                }))
+                : [],
+        };
+    }
+
+    return nextSettings;
+};
+
+const safeParse = (value, fallback) => {
+    if (value == null) return fallback;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
 
 export const storage = {
+    /**
+     * Run one-time storage migrations for app upgrades.
+     */
+    async ensureDataMigrated() {
+        try {
+            const rawVersion = await AsyncStorage.getItem(STORAGE_SCHEMA_KEY);
+            const parsedVersion = rawVersion != null ? Number(JSON.parse(rawVersion)) : 0;
+            const currentVersion = Number.isFinite(parsedVersion) ? parsedVersion : 0;
+
+            if (currentVersion >= CURRENT_STORAGE_SCHEMA_VERSION) {
+                return false;
+            }
+
+            await this.migrateData(currentVersion);
+            await AsyncStorage.setItem(STORAGE_SCHEMA_KEY, JSON.stringify(CURRENT_STORAGE_SCHEMA_VERSION));
+            return true;
+        } catch (e) {
+            console.error('Error running storage migration', e);
+            return false;
+        }
+    },
+
+    /**
+     * Migration pipeline from any older schema to current schema.
+     */
+    async migrateData(fromVersion = 0) {
+        // v0 -> v1: normalize and harden existing persisted data.
+        if (fromVersion < 1) {
+            const entries = await AsyncStorage.multiGet([
+                HABITS_KEY,
+                SETTINGS_KEY,
+                PROJECTS_KEY,
+                FOCUS_SESSIONS_KEY,
+                ONBOARDING_KEY,
+            ]);
+            const map = Object.fromEntries(entries);
+
+            const habits = normalizeHabits(safeParse(map[HABITS_KEY], []));
+            const settings = normalizeSettings(safeParse(map[SETTINGS_KEY], {}));
+            const projects = normalizeProjects(safeParse(map[PROJECTS_KEY], []));
+            const focusSessions = normalizeFocusSessions(safeParse(map[FOCUS_SESSIONS_KEY], []));
+            const hasCompletedOnboarding = map[ONBOARDING_KEY] != null
+                ? Boolean(safeParse(map[ONBOARDING_KEY], false))
+                : false;
+
+            await AsyncStorage.multiSet([
+                [HABITS_KEY, JSON.stringify(habits)],
+                [SETTINGS_KEY, JSON.stringify(settings)],
+                [PROJECTS_KEY, JSON.stringify(projects)],
+                [FOCUS_SESSIONS_KEY, JSON.stringify(focusSessions)],
+                [ONBOARDING_KEY, JSON.stringify(hasCompletedOnboarding)],
+            ]);
+        }
+    },
+
     /**
      * Get all habits from storage
      */
@@ -71,6 +262,38 @@ export const storage = {
     },
 
     /**
+     * Mark habit completion status for a specific date (idempotent).
+     */
+    async setHabitCompletion(habitId, isCompleted = true, dateStr = new Date().toISOString().split('T')[0]) {
+        const habits = await this.getHabits();
+        const updatedHabits = habits.map((habit) => {
+            if (habit.id !== habitId) return habit;
+
+            const completedDates = Array.isArray(habit.completedDates) ? habit.completedDates : [];
+            const hasDate = completedDates.includes(dateStr);
+            let nextDates = completedDates;
+            let nextStreak = habit.streak || 0;
+
+            if (isCompleted && !hasDate) {
+                nextDates = [...completedDates, dateStr];
+                nextStreak += 1;
+            } else if (!isCompleted && hasDate) {
+                nextDates = completedDates.filter((d) => d !== dateStr);
+                nextStreak = Math.max(0, nextStreak - 1);
+            }
+
+            return {
+                ...habit,
+                completedDates: nextDates,
+                streak: nextStreak,
+            };
+        });
+
+        await this.saveHabits(updatedHabits);
+        return updatedHabits;
+    },
+
+    /**
      * Update an existing habit
      */
     async updateHabit(habitId, updates) {
@@ -100,7 +323,7 @@ export const storage = {
      */
     async getSettings() {
         try {
-            const jsonValue = await AsyncStorage.getItem('@settings_data');
+            const jsonValue = await AsyncStorage.getItem(SETTINGS_KEY);
             return jsonValue != null ? JSON.parse(jsonValue) : null;
         } catch (e) {
             console.error('Error reading settings', e);
@@ -114,78 +337,10 @@ export const storage = {
     async saveSettings(settings) {
         try {
             const jsonValue = JSON.stringify(settings);
-            await AsyncStorage.setItem('@settings_data', jsonValue);
+            await AsyncStorage.setItem(SETTINGS_KEY, jsonValue);
         } catch (e) {
             console.error('Error saving settings', e);
         }
-    },
-
-    /**
-     * Get all notes
-     */
-    async getNotes() {
-        try {
-            const jsonValue = await AsyncStorage.getItem('@notes_data');
-            return jsonValue != null ? JSON.parse(jsonValue) : [];
-        } catch (e) {
-            console.error('Error reading notes', e);
-            return [];
-        }
-    },
-
-    /**
-     * Save all notes
-     */
-    async saveNotes(notes) {
-        try {
-            const jsonValue = JSON.stringify(notes);
-            await AsyncStorage.setItem('@notes_data', jsonValue);
-        } catch (e) {
-            console.error('Error saving notes', e);
-        }
-    },
-
-    /**
-     * Add a new note
-     * noteData: { title, content, tags }
-     */
-    async addNote(noteData) {
-        const notes = await this.getNotes();
-        const newNote = {
-            id: Date.now().toString(),
-            title: noteData.title || '',
-            content: noteData.content || (typeof noteData === 'string' ? noteData : ''),
-            tags: noteData.tags || [],
-            createdAt: new Date().toISOString(),
-        };
-        const newNotes = [newNote, ...notes];
-        await this.saveNotes(newNotes);
-        return newNotes;
-    },
-
-    /**
-     * Delete a note
-     */
-    async deleteNote(noteId) {
-        const notes = await this.getNotes();
-        const updatedNotes = notes.filter(note => note.id !== noteId);
-        await this.saveNotes(updatedNotes);
-        return updatedNotes;
-    },
-
-    /**
-     * Update an existing note
-     */
-    async updateNote(noteId, updates) {
-        const notes = await this.getNotes();
-        const updatedNotes = notes.map(note => {
-            if (note.id === noteId) {
-                return { ...note, ...updates };
-            }
-            return note;
-        });
-        await this.saveNotes(updatedNotes);
-        return updatedNotes;
     },
 
     /**
@@ -193,7 +348,7 @@ export const storage = {
      */
     async getProjects() {
         try {
-            const jsonValue = await AsyncStorage.getItem('@projects_data');
+            const jsonValue = await AsyncStorage.getItem(PROJECTS_KEY);
             return jsonValue != null ? JSON.parse(jsonValue) : [];
         } catch (e) {
             console.error('Error reading projects', e);
@@ -207,7 +362,7 @@ export const storage = {
     async saveProjects(projects) {
         try {
             const jsonValue = JSON.stringify(projects);
-            await AsyncStorage.setItem('@projects_data', jsonValue);
+            await AsyncStorage.setItem(PROJECTS_KEY, jsonValue);
         } catch (e) {
             console.error('Error saving projects', e);
         }
@@ -260,8 +415,19 @@ export const storage = {
      */
     async getFocusSessions() {
         try {
-            const jsonValue = await AsyncStorage.getItem('@focus_sessions');
-            return jsonValue != null ? JSON.parse(jsonValue) : [];
+            const jsonValue = await AsyncStorage.getItem(FOCUS_SESSIONS_KEY);
+            const sessions = jsonValue != null ? JSON.parse(jsonValue) : [];
+            const now = Date.now();
+            const validSessions = (Array.isArray(sessions) ? sessions : []).filter((session) => {
+                const createdAtMs = new Date(session?.createdAt).getTime();
+                return Number.isFinite(createdAtMs) && (now - createdAtMs) <= FOCUS_RETENTION_MS;
+            });
+
+            if (validSessions.length !== sessions.length) {
+                await this.saveFocusSessions(validSessions);
+            }
+
+            return validSessions;
         } catch (e) {
             console.error('Error reading focus sessions', e);
             return [];
@@ -274,7 +440,7 @@ export const storage = {
     async saveFocusSessions(sessions) {
         try {
             const jsonValue = JSON.stringify(sessions);
-            await AsyncStorage.setItem('@focus_sessions', jsonValue);
+            await AsyncStorage.setItem(FOCUS_SESSIONS_KEY, jsonValue);
         } catch (e) {
             console.error('Error saving focus sessions', e);
         }
@@ -311,7 +477,7 @@ export const storage = {
      */
     async getHasCompletedOnboarding() {
         try {
-            const jsonValue = await AsyncStorage.getItem('@has_completed_onboarding');
+            const jsonValue = await AsyncStorage.getItem(ONBOARDING_KEY);
             return jsonValue != null ? JSON.parse(jsonValue) : false;
         } catch (e) {
             console.error('Error reading onboarding status', e);
@@ -325,10 +491,71 @@ export const storage = {
     async saveHasCompletedOnboarding(status) {
         try {
             const jsonValue = JSON.stringify(status);
-            await AsyncStorage.setItem('@has_completed_onboarding', jsonValue);
+            await AsyncStorage.setItem(ONBOARDING_KEY, jsonValue);
         } catch (e) {
             console.error('Error saving onboarding status', e);
         }
-    }
+    },
+
+    /**
+     * Export app data as a JSON backup payload string.
+     */
+    async exportBackup() {
+        try {
+            const entries = await AsyncStorage.multiGet(BACKUP_KEYS);
+            const data = {};
+
+            entries.forEach(([key, value]) => {
+                if (value != null) {
+                    try {
+                        data[key] = JSON.parse(value);
+                    } catch {
+                        data[key] = value;
+                    }
+                }
+            });
+
+            return JSON.stringify(
+                {
+                    schemaVersion: BACKUP_SCHEMA_VERSION,
+                    exportedAt: new Date().toISOString(),
+                    data,
+                },
+                null,
+                2
+            );
+        } catch (e) {
+            console.error('Error exporting backup', e);
+            throw new Error('Could not export backup');
+        }
+    },
+
+    /**
+     * Import app data from a JSON backup payload string or object.
+     */
+    async importBackup(payload) {
+        try {
+            const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+            const data = parsed?.data;
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                throw new Error('Invalid backup format');
+            }
+
+            const writes = BACKUP_KEYS
+                .filter((key) => Object.prototype.hasOwnProperty.call(data, key))
+                .map((key) => [key, JSON.stringify(data[key])]);
+
+            if (writes.length === 0) {
+                throw new Error('No supported keys found in backup');
+            }
+
+            await AsyncStorage.multiSet(writes);
+            await this.ensureDataMigrated();
+            return true;
+        } catch (e) {
+            console.error('Error importing backup', e);
+            throw new Error('Could not import backup');
+        }
+    },
 
 };

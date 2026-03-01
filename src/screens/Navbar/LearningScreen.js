@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
-import { LinearGradient } from 'expo-linear-gradient';
+import TabPageHeader from '../../components/TabPageHeader';
 
 const FREE_DICTIONARY_API = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 const RANDOM_WORD_API = 'https://random-word-api.herokuapp.com/word';
 
 export default function LearningScreen() {
-    const { theme, isDark } = useTheme();
+    const { theme } = useTheme();
+    const scrollRef = React.useRef(null);
     const [wordData, setWordData] = useState(null);
     const [newsItems, setNewsItems] = useState({ general: null, market: null, crypto: null });
     const [loading, setLoading] = useState(true);
@@ -92,6 +94,14 @@ export default function LearningScreen() {
         fetchQuickNews();
     }, []);
 
+    useFocusEffect(
+        React.useCallback(() => {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+            });
+        }, [])
+    );
+
     // Helper to find a definition and example
     const getBestDefinition = () => {
         if (!wordData) return null;
@@ -113,12 +123,8 @@ export default function LearningScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={styles.header}>
-                    <Text style={[styles.title, { color: theme.text }]}>Learning</Text>
-                    <Text style={[styles.subtitle, { color: theme.subText }]}>Expand your knowledge</Text>
-                </View>
-
+            <TabPageHeader title="Learning" variant="minimal" />
+            <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.sectionHeader}>
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>Random Learnings</Text>
                 </View>
@@ -268,20 +274,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 20,
-    },
-    header: {
-        paddingTop: 24,
-        paddingBottom: 24,
-    },
-    title: {
-        fontSize: 34,
-        fontWeight: '900',
-        letterSpacing: -1,
-    },
-    subtitle: {
-        fontSize: 16,
-        marginTop: 4,
-        opacity: 0.8,
+        paddingTop: 14,
     },
     sectionHeader: {
         marginBottom: 16,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing } from 'react-native';
+import { getFloatingTabBarStyle } from '../../../../navigation/tabBarStyles';
 
 const { width } = Dimensions.get('window');
 
@@ -8,29 +9,16 @@ export function useSidebarDrawer({ navigation, theme }) {
     const sidebarX = useRef(new Animated.Value(-width * 0.8)).current;
 
     useEffect(() => {
+        if (isSidebarVisible) {
+            navigation.setOptions({
+                tabBarStyle: { display: 'none' },
+            });
+            return;
+        }
+
+        // Keep Home tab visually identical to global floating tab bar.
         navigation.setOptions({
-            tabBarStyle: isSidebarVisible
-                ? { display: 'none' }
-                : {
-                    position: 'absolute',
-                    bottom: 30,
-                    left: 20,
-                    right: 20,
-                    elevation: 10,
-                    backgroundColor: theme.tabBar,
-                    borderRadius: 35,
-                    height: 70,
-                    shadowColor: theme.mode === 'dark' ? '#000' : '#475569',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 15,
-                    borderTopWidth: 1,
-                    borderTopColor: theme.glassBorder,
-                    borderLeftWidth: 1,
-                    borderLeftColor: theme.glassBorder,
-                    borderRightWidth: 1,
-                    borderRightColor: theme.glassBorder,
-                },
+            tabBarStyle: getFloatingTabBarStyle(theme),
         });
     }, [isSidebarVisible, navigation, theme]);
 

@@ -6,6 +6,7 @@ import { storage } from '../../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { ContributionGraph } from 'react-native-chart-kit';
 import { useTheme } from '../../context/ThemeContext';
+import TabPageHeader from '../../components/TabPageHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -37,10 +38,10 @@ export default function StatsScreen() {
         bestStreak: 0,
         activeHabits: 0
     });
-    const [focusSessions, setFocusSessions] = useState([]);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(20)).current;
+    const scrollRef = useRef(null);
 
     const calculateStats = useCallback((loadedHabits) => {
         // Calculate Heatmap Data
@@ -77,9 +78,7 @@ export default function StatsScreen() {
 
     const loadData = async () => {
         const storedHabits = await storage.getHabits();
-        const storedSessions = await storage.getFocusSessions();
         setHabits(storedHabits);
-        setFocusSessions(storedSessions);
         calculateStats(storedHabits);
 
         Animated.parallel([
@@ -97,22 +96,11 @@ export default function StatsScreen() {
         ]).start();
     };
 
-    const handleDeleteFocusSession = async (id) => {
-        const updatedSessions = await storage.deleteFocusSession(id);
-        setFocusSessions(updatedSessions);
-    };
-
-    const formatDuration = (ms) => {
-        const mins = Math.floor(ms / 60000);
-        const hrs = Math.floor(mins / 60);
-        if (hrs > 0) {
-            return `${hrs}h ${mins % 60}m`;
-        }
-        return `${mins}m`;
-    };
-
     useFocusEffect(
         useCallback(() => {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+            });
             loadData();
         }, [])
     );
@@ -143,12 +131,8 @@ export default function StatsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-                    <Text style={[styles.title, { color: theme.text }]}>Statistics</Text>
-                    <Text style={[styles.subtitle, { color: theme.subText }]}>Visualizing your progress</Text>
-                </Animated.View>
-
+            <TabPageHeader title="Statistics" variant="minimal" />
+            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Main Highlight Card with Gradient */}
                 <Animated.View style={[styles.highlightCardContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <LinearGradient
@@ -293,39 +277,6 @@ export default function StatsScreen() {
                     ))}
                 </View>
 
-                {/* Focus Sessions Section */}
-                <View style={styles.focusSection}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Focus History</Text>
-                    {focusSessions.length === 0 ? (
-                        <View style={[styles.emptyFocusCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                            <Ionicons name="timer-outline" size={42} color={theme.subText} />
-                            <Text style={[styles.emptyFocusText, { color: theme.subText }]}>No sessions recorded yet</Text>
-                            <Text style={[styles.emptyFocusSubText, { color: theme.subText }]}>Stay focused for at least 30 mins to track</Text>
-                        </View>
-                    ) : (
-                        focusSessions.map(session => (
-                            <View key={session.id} style={[styles.focusItem, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-                                <View style={styles.focusInfo}>
-                                    <View style={[styles.focusIconBox, { backgroundColor: theme.input }]}>
-                                        <Ionicons name="stopwatch" size={24} color={theme.primary} />
-                                    </View>
-                                    <View style={styles.focusTextContent}>
-                                        <Text style={[styles.focusTitle, { color: theme.text }]}>{session.title}</Text>
-                                        <Text style={[styles.focusMeta, { color: theme.subText }]}>
-                                            {new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} • {formatDuration(session.duration)}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => handleDeleteFocusSession(session.id)}
-                                    style={styles.deleteButton}
-                                >
-                                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                                </TouchableOpacity>
-                            </View>
-                        ))
-                    )}
-                </View>
                 <View style={{ height: 40 }} />
             </ScrollView>
         </SafeAreaView>
@@ -338,20 +289,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 20,
-    },
-    header: {
-        paddingTop: 24,
-        paddingBottom: 24,
-    },
-    title: {
-        fontSize: 34,
-        fontWeight: '900',
-        letterSpacing: -1,
-    },
-    subtitle: {
-        fontSize: 16,
-        marginTop: 4,
-        opacity: 0.8,
+        paddingTop: 14,
     },
     highlightCardContainer: {
         marginBottom: 32,
@@ -561,68 +499,5 @@ const styles = StyleSheet.create({
     progressFill: {
         height: '100%',
         borderRadius: 5,
-    },
-    focusSection: {
-        marginBottom: 20,
-    },
-    emptyFocusCard: {
-        padding: 48,
-        borderRadius: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderStyle: 'dashed',
-    },
-    emptyFocusText: {
-        marginTop: 16,
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    emptyFocusSubText: {
-        marginTop: 4,
-        fontSize: 13,
-        opacity: 0.6,
-        textAlign: 'center',
-    },
-    focusItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 18,
-        borderRadius: 24,
-        marginBottom: 12,
-        elevation: 1,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 8,
-    },
-    focusInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    focusIconBox: {
-        width: 52,
-        height: 52,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 16,
-    },
-    focusTextContent: {
-        flex: 1,
-    },
-    focusTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-        marginBottom: 4,
-    },
-    focusMeta: {
-        fontSize: 13,
-        fontWeight: '600',
-        opacity: 0.6,
-    },
-    deleteButton: {
-        padding: 10,
     },
 });

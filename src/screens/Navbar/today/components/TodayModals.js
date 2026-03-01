@@ -10,14 +10,16 @@ export default function TodayModals({
     editingHabitId,
     newHabitName,
     setNewHabitName,
-    reminderTime,
-    setReminderTime,
+    habitFrequency,
+    setHabitFrequency,
+    habitPriority,
+    setHabitPriority,
+    habitCategory,
+    setHabitCategory,
+    habitFrequencyOptions,
+    habitPriorityOptions,
+    habitCategoryOptions,
     handleAddOrUpdateHabit,
-    isOptionsVisible,
-    setIsOptionsVisible,
-    selectedHabit,
-    openEditModal,
-    handleDeleteHabit,
     isProjectModalVisible,
     closeProjectModal,
     editingProjectId,
@@ -27,6 +29,33 @@ export default function TodayModals({
     setNewProjectDuration,
     handleAddOrUpdateProject,
 }) {
+    const renderOptionGroup = ({ label, value, setValue, options }) => (
+        <View style={styles.optionGroup}>
+            <Text style={[styles.inputLabel, { color: theme.subText }]}>{label}</Text>
+            <View style={styles.optionRow}>
+                {options.map((option) => {
+                    const isActive = option === value;
+                    return (
+                        <TouchableOpacity
+                            key={`${label}-${option}`}
+                            style={[
+                                styles.optionChip,
+                                {
+                                    borderColor: isActive ? theme.primary : theme.border,
+                                    backgroundColor: isActive ? theme.primary + '18' : theme.input,
+                                },
+                            ]}
+                            onPress={() => setValue(option)}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={[styles.optionChipText, { color: isActive ? theme.primary : theme.text }]}>{option}</Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+
     return (
         <>
             <Modal visible={isHabitModalVisible} animationType="slide" transparent onRequestClose={closeHabitModal}>
@@ -49,18 +78,24 @@ export default function TodayModals({
                             autoFocus
                         />
 
-                        <Text style={[styles.inputLabel, { color: theme.subText, marginTop: 12 }]}>REMINDER TIME</Text>
-                        <View style={styles.timePickerContainer}>
-                            <TextInput
-                                style={[styles.timeInput, { backgroundColor: theme.input, color: theme.text }]}
-                                placeholder="HH:mm"
-                                placeholderTextColor={theme.subText}
-                                value={reminderTime}
-                                onChangeText={setReminderTime}
-                                maxLength={5}
-                            />
-                            <Text style={{ color: theme.subText, fontSize: 12, marginLeft: 8 }}>Use 24h format (e.g. 14:30)</Text>
-                        </View>
+                        {renderOptionGroup({
+                            label: 'FREQUENCY',
+                            value: habitFrequency,
+                            setValue: setHabitFrequency,
+                            options: habitFrequencyOptions,
+                        })}
+                        {renderOptionGroup({
+                            label: 'PRIORITY',
+                            value: habitPriority,
+                            setValue: setHabitPriority,
+                            options: habitPriorityOptions,
+                        })}
+                        {renderOptionGroup({
+                            label: 'CATEGORY',
+                            value: habitCategory,
+                            setValue: setHabitCategory,
+                            options: habitCategoryOptions,
+                        })}
 
                         <TouchableOpacity
                             style={[styles.createButton, { backgroundColor: theme.primary }, !newHabitName.trim() && styles.createButtonDisabled]}
@@ -72,31 +107,6 @@ export default function TodayModals({
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
-
-            <Modal visible={isOptionsVisible} animationType="fade" transparent onRequestClose={() => setIsOptionsVisible(false)}>
-                <TouchableOpacity style={styles.optionsOverlay} activeOpacity={1} onPress={() => setIsOptionsVisible(false)}>
-                    <View style={[styles.optionsContent, { backgroundColor: theme.card }]}> 
-                        <View style={[styles.optionsHeader, { borderBottomColor: theme.border }]}> 
-                            <Text style={[styles.optionsTitle, { color: theme.text }]}>{selectedHabit?.name}</Text>
-                        </View>
-
-                        <TouchableOpacity style={styles.optionItem} onPress={() => openEditModal(selectedHabit)}>
-                            <Ionicons name="pencil-outline" size={20} color={theme.subText} />
-                            <Text style={[styles.optionText, { color: theme.subText }]}>Edit Habit</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={[styles.optionItem, styles.deleteOption]} onPress={() => handleDeleteHabit(selectedHabit?.id)}>
-                            <Ionicons name="trash-outline" size={20} color={theme.danger} />
-                            <Text style={[styles.optionText, { color: theme.danger }]}>Delete Habit</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={[styles.cancelOption, { borderTopColor: theme.border }]} onPress={() => setIsOptionsVisible(false)}>
-                            <Text style={[styles.cancelText, { color: theme.subText }]}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-
             <Modal
                 visible={isProjectModalVisible}
                 animationType="slide"
@@ -115,7 +125,7 @@ export default function TodayModals({
                         <Text style={[styles.inputLabel, { color: theme.subText }]}>TASK NAME</Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: theme.input, color: theme.text }]}
-                            placeholder="e.g. Finish Habit Tracker App"
+                            placeholder="e.g. Finish Flow State App"
                             placeholderTextColor={theme.subText}
                             value={newProjectName}
                             onChangeText={setNewProjectName}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
@@ -9,8 +9,6 @@ export default function SidebarDrawer({
     userData,
     isUserLoading,
     userError,
-    isDark,
-    toggleTheme,
     isSidebarVisible,
     dynamicBackdropOpacity,
     displayX,
@@ -21,6 +19,14 @@ export default function SidebarDrawer({
     const triggerTapFeedback = () => {
         Haptics.selectionAsync().catch(() => null);
     };
+    const menuItems = [
+        { key: 'News', icon: 'newspaper-outline', color: theme.primary, label: 'News' },
+        { key: 'Market', icon: 'bar-chart-outline', color: theme.success, label: 'Share Market' },
+        { key: 'Trends', icon: 'trending-up-outline', color: theme.warning, label: 'Trends' },
+        { key: 'Crypto', icon: 'logo-bitcoin', color: '#F7931A', label: 'Crypto News' },
+        { key: 'Focus', icon: 'timer-outline', color: theme.primary, label: 'Focus' },
+        { key: 'Tech', icon: 'hardware-chip-outline', color: theme.text, label: 'Tech Stuff' },
+    ];
 
     return (
         <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]}>
@@ -37,22 +43,30 @@ export default function SidebarDrawer({
                 ]}
             >
                 <View style={styles.sidebarHeader}>
-                    <View style={[styles.sidebarAvatar, { borderColor: theme.border }]}> 
-                        {userData.profileImage ? (
-                            <Image source={userData.profileImage} style={styles.avatarImage} />
-                        ) : (
-                            <Ionicons name="person" size={32} color={theme.primary} />
-                        )}
-                    </View>
-                    <Text style={[styles.sidebarName, { color: theme.text }]}>{userData.name || 'User'}</Text>
-                    {isUserLoading ? (
-                        <View style={styles.sidebarInfoRow}>
-                            <ActivityIndicator size="small" color={theme.primary} />
-                            <Text style={[styles.sidebarInfoText, { color: theme.subText }]}>Loading profile...</Text>
+                    <View style={styles.sidebarHeaderRow}>
+                        <View style={[styles.sidebarAvatar, { borderColor: theme.border }]}> 
+                            {userData.profileImage ? (
+                                <Image source={userData.profileImage} style={styles.avatarImage} />
+                            ) : (
+                                <Ionicons name="person" size={24} color={theme.primary} />
+                            )}
                         </View>
-                    ) : userError ? (
-                        <Text style={[styles.sidebarInfoText, { color: theme.danger }]}>{userError}</Text>
-                    ) : null}
+                        <View style={styles.sidebarIdentity}>
+                            <Text style={[styles.sidebarName, { color: theme.text }]} numberOfLines={1}>
+                                {userData.name || 'User'}
+                            </Text>
+                            {isUserLoading ? (
+                                <View style={styles.sidebarInfoRow}>
+                                    <ActivityIndicator size="small" color={theme.primary} />
+                                    <Text style={[styles.sidebarInfoText, { color: theme.subText }]}>Loading profile...</Text>
+                                </View>
+                            ) : userError ? (
+                                <Text style={[styles.sidebarInfoText, { color: theme.danger }]} numberOfLines={1}>{userError}</Text>
+                            ) : (
+                                <Text style={[styles.sidebarSubtext, { color: theme.subText }]}>Welcome back</Text>
+                            )}
+                        </View>
+                    </View>
                     <TouchableOpacity
                         onPress={closeSidebar}
                         onPressIn={triggerTapFeedback}
@@ -65,56 +79,28 @@ export default function SidebarDrawer({
                 <View style={styles.sidebarDivider} />
 
                 <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent} showsVerticalScrollIndicator={false}>
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('News')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="newspaper-outline" size={24} color={theme.primary} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>News</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Market')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="bar-chart-outline" size={24} color={theme.success} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Share Market</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Trends')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="trending-up-outline" size={24} color={theme.warning} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Trends</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Crypto')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="logo-bitcoin" size={24} color="#F7931A" />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Crypto News</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Movies')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="film-outline" size={24} color={theme.text} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Movies</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Tech')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="hardware-chip-outline" size={24} color={theme.text} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Tech Stuff</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.sidebarItem} onPress={() => navigateToSection('Notes')} onPressIn={triggerTapFeedback}>
-                        <Ionicons name="document-text-outline" size={24} color={theme.primary} />
-                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>My Notes</Text>
-                    </TouchableOpacity>
+                    {menuItems.map((item) => (
+                        <TouchableOpacity
+                            key={item.key}
+                            style={[styles.sidebarItem, { backgroundColor: theme.input }]}
+                            onPress={() => navigateToSection(item.key)}
+                            onPressIn={triggerTapFeedback}
+                        >
+                            <Ionicons name={item.icon} size={22} color={item.color} />
+                            <Text style={[styles.sidebarItemText, { color: theme.text }]}>{item.label}</Text>
+                        </TouchableOpacity>
+                    ))}
 
                     <View style={styles.sidebarDivider} />
 
-                    <View style={styles.themeToggleContainer}>
-                        <View style={styles.themeToggleLabel}>
-                            <Ionicons name={isDark ? 'moon' : 'sunny'} size={24} color={theme.text} />
-                            <Text style={[styles.sidebarItemText, { color: theme.text }]}>{isDark ? 'Dark Mode' : 'Light Mode'}</Text>
-                        </View>
-                        <Switch
-                            trackColor={{ false: '#767577', true: theme.primary }}
-                            thumbColor="#f4f3f4"
-                            ios_backgroundColor="#3e3e3e"
-                            onValueChange={toggleTheme}
-                            value={isDark}
-                        />
-                    </View>
+                    <TouchableOpacity
+                        style={[styles.sidebarItem, { backgroundColor: theme.input }]}
+                        onPress={() => navigateToSection('Settings')}
+                        onPressIn={triggerTapFeedback}
+                    >
+                        <Ionicons name="settings-outline" size={22} color={theme.text} />
+                        <Text style={[styles.sidebarItemText, { color: theme.text }]}>Settings</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </Animated.View>
         </View>

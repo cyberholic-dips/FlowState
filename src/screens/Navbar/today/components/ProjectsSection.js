@@ -2,7 +2,6 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import LottieView from 'lottie-react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import * as Haptics from 'expo-haptics';
 
@@ -23,6 +22,7 @@ export default function ProjectsSection({
     const triggerTapFeedback = () => {
         Haptics.selectionAsync().catch(() => null);
     };
+    const isEmptyState = !loadingProjects && !projectsError && projects.length === 0;
 
     const renderProjectActions = (project) => (
         <View style={styles.swipeActionsWrap}>
@@ -63,7 +63,7 @@ export default function ProjectsSection({
     );
 
     return (
-        <View style={styles.section}>
+        <View style={[styles.section, isEmptyState && { marginBottom: 10 }]}>
             <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Tasks to Complete</Text>
                 <TouchableOpacity
@@ -99,22 +99,27 @@ export default function ProjectsSection({
                 </View>
             )}
 
-            {!loadingProjects && !projectsError && projects.length === 0 ? (
+            {isEmptyState ? (
                 <TouchableOpacity
                     onPress={() => {
                         triggerTapFeedback();
                         onOpenProjectModal();
                     }}
-                    style={[styles.emptyProjectCard, { borderColor: theme.border, overflow: 'hidden' }]}
+                    style={[
+                        styles.emptyProjectCard,
+                        {
+                            borderColor: theme.border,
+                            backgroundColor: theme.glassBackground,
+                            borderStyle: 'solid',
+                            borderWidth: 1,
+                            paddingVertical: 14,
+                            paddingHorizontal: 16,
+                            borderRadius: 16,
+                        },
+                    ]}
                     activeOpacity={0.6}
                 >
-                    <LottieView
-                        source={{ uri: 'https://lottie.host/8111e1ee-b5a8-444a-a035-71be84704871/9yTzX3V9Xo.json' }}
-                        autoPlay
-                        loop
-                        style={{ width: 120, height: 120, marginBottom: 10 }}
-                    />
-                    <Text style={{ color: theme.subText, fontWeight: '600' }}>Add a project deadline</Text>
+                    <Text style={{ color: theme.subText, fontWeight: '600' }}>No tasks yet. Tap + to add one.</Text>
                 </TouchableOpacity>
             ) : null}
 
@@ -145,17 +150,6 @@ export default function ProjectsSection({
                                         <LinearGradient colors={[daysColor, daysColor + 'CC']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                                         <Text style={[styles.daysLeftText, { color: 'white' }]}>{daysText}</Text>
                                     </View>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            triggerTapFeedback();
-                                            onDeleteProject(project.id);
-                                        }}
-                                        onPressIn={triggerTapFeedback}
-                                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                                        style={{ marginTop: 10 }}
-                                    >
-                                        <Ionicons name="trash-outline" size={16} color={theme.subText} />
-                                    </TouchableOpacity>
                                 </View>
                             </View>
                         </Swipeable>

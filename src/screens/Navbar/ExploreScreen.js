@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -15,8 +16,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { storage } from '../../utils/storage';
+import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
+import { useFocusEffect } from '@react-navigation/native';
+import TabPageHeader from '../../components/TabPageHeader';
 
 const LIFE_SETTINGS_KEY = 'lifeIndex';
+const LIFE_EXPECTANCY_STEP = 5;
+const EVENT_FILTER_OPTIONS = ['All', 'Upcoming'];
 
 const EVENT_OPTIONS = [
     { key: 'star', icon: 'star', color: '#34D1BF' },
@@ -31,6 +38,9 @@ const EVENT_OPTIONS = [
     { key: 'home', icon: 'home', color: '#34D1BF' },
     { key: 'film', icon: 'film', color: '#55D22E' },
     { key: 'medkit', icon: 'medkit', color: '#F26B6B' },
+    { key: 'airplane', icon: 'airplane', color: '#3B82F6' },
+    { key: 'school', icon: 'school', color: '#22C55E' },
+    { key: 'heart', icon: 'heart', color: '#EF4444' },
 ];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -50,12 +60,20 @@ const yearsSince = (start, end = new Date()) => {
     const ms = new Date(end).getTime() - new Date(start).getTime();
     return ms / (1000 * 60 * 60 * 24 * 365.2425);
 };
+const formatYears = (value) => {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}` : `${rounded.toFixed(1)}`;
+};
 
 const getIconConfig = (iconKey) => EVENT_OPTIONS.find((item) => item.key === iconKey) || EVENT_OPTIONS[0];
 const degToRad = (deg) => (deg * Math.PI) / 180;
 
 export default function ExploreScreen() {
     const { width, height } = useWindowDimensions();
+    const { theme } = useTheme();
+    const { updateBirthDate } = useUser();
+    const scrollRef = React.useRef(null);
+    const eventCardOffsetsRef = React.useRef({});
 
     const [isReady, setIsReady] = useState(false);
     const [birthDate, setBirthDate] = useState(new Date(1999, 5, 26));
@@ -63,10 +81,13 @@ export default function ExploreScreen() {
     const [events, setEvents] = useState([]);
 
     const [isBirthPickerVisible, setIsBirthPickerVisible] = useState(false);
+    const [isLifeExpectancyModalVisible, setIsLifeExpectancyModalVisible] = useState(false);
     const [isAddEventVisible, setIsAddEventVisible] = useState(false);
     const [isDraftDatePickerVisible, setIsDraftDatePickerVisible] = useState(false);
     const [editingEventId, setEditingEventId] = useState(null);
     const [selectedEventId, setSelectedEventId] = useState(null);
+    const [draftLifeExpectancy, setDraftLifeExpectancy] = useState(75);
+    const [eventFilter, setEventFilter] = useState('All');
 
     const [draftTitle, setDraftTitle] = useState('');
     const [draftDate, setDraftDate] = useState(new Date());
@@ -88,11 +109,21 @@ export default function ExploreScreen() {
         const load = async () => {
             const settings = await storage.getSettings();
             const saved = settings?.[LIFE_SETTINGS_KEY];
+            const userBirthDate = settings?.user?.birthDate;
 
             if (saved) {
                 if (saved.birthDate) setBirthDate(new Date(saved.birthDate));
-                if (saved.lifeExpectancy) setLifeExpectancy(saved.lifeExpectancy);
+                if (typeof saved.lifeExpectancy === 'number') {
+                    const normalized = clamp(saved.lifeExpectancy, 30, 120);
+                    setLifeExpectancy(normalized);
+                    setDraftLifeExpectancy(normalized);
+                } else {
+                    setLifeExpectancy(75);
+                    setDraftLifeExpectancy(75);
+                }
                 if (Array.isArray(saved.events)) setEvents(saved.events);
+            } else if (userBirthDate) {
+                setBirthDate(new Date(userBirthDate));
             }
 
             setIsReady(true);
@@ -108,6 +139,10 @@ export default function ExploreScreen() {
             const settings = (await storage.getSettings()) || {};
             await storage.saveSettings({
                 ...settings,
+                user: {
+                    ...(settings.user || {}),
+                    birthDate: birthDate.toISOString(),
+                },
                 [LIFE_SETTINGS_KEY]: {
                     birthDate: birthDate.toISOString(),
                     lifeExpectancy,
@@ -119,8 +154,33 @@ export default function ExploreScreen() {
         persist();
     }, [isReady, birthDate, lifeExpectancy, events]);
 
+    useFocusEffect(
+        React.useCallback(() => {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+            });
+        }, [])
+    );
+
     const currentAge = useMemo(() => clamp(yearsSince(birthDate), 0, 130), [birthDate]);
     const lifeProgress = useMemo(() => clamp((currentAge / lifeExpectancy) * 100, 0, 100), [currentAge, lifeExpectancy]);
+    const ui = useMemo(() => ({
+        screenBg: theme.background,
+        panel: theme.card,
+        panelSoft: theme.input,
+        panelAlt: theme.mode === 'dark' ? '#273449' : '#ECECEE',
+        text: theme.text,
+        subText: theme.subText,
+        mutedText: theme.mode === 'dark' ? '#64748B' : '#8B8B8B',
+        ringBg: theme.mode === 'dark' ? '#1A2538' : '#EFEFF0',
+        ringEdge: theme.mode === 'dark' ? '#334155' : '#F5F5F5',
+        hand: theme.mode === 'dark' ? '#CBD5E1' : '#3B3C41',
+        handDot: theme.mode === 'dark' ? '#E2E8F0' : '#3A3B40',
+        progressTrack: theme.mode === 'dark' ? '#334155' : '#D9DBDF',
+        modalOverlay: theme.mode === 'dark' ? 'rgba(2,6,23,0.62)' : 'rgba(0,0,0,0.16)',
+        badgeBg: theme.mode === 'dark' ? 'rgba(15,23,42,0.76)' : 'rgba(255,255,255,0.9)',
+        actionBg: theme.mode === 'dark' ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.92)',
+    }), [theme]);
 
     const birthDays = useMemo(() => daysSince(birthDate), [birthDate]);
 
@@ -146,6 +206,15 @@ export default function ExploreScreen() {
         return [originEvent, ...events].sort((a, b) => new Date(b.date) - new Date(a.date));
     }, [events, originEvent]);
 
+    const filteredCardEvents = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (eventFilter === 'Upcoming') {
+            return cardEvents.filter((event) => new Date(event.date) > startOfToday);
+        }
+        return cardEvents;
+    }, [cardEvents, eventFilter]);
+
     const ageToAngle = (ageValue) => -90 + (clamp(ageValue / lifeExpectancy, 0, 1) * 360);
     const getPointAtAge = (ageValue, radius = ringRadius) => {
         const angle = degToRad(ageToAngle(ageValue));
@@ -157,8 +226,16 @@ export default function ExploreScreen() {
 
     const handTipPoint = getPointAtAge(currentAge, handRadius);
     const handLength = Math.hypot(handTipPoint.x - boardCenter, handTipPoint.y - boardCenter);
-    const handMidX = (handTipPoint.x + boardCenter) / 2;
-    const handMidY = (handTipPoint.y + boardCenter) / 2;
+    const handTailLength = 10;
+    const handDirX = handLength ? (handTipPoint.x - boardCenter) / handLength : 0;
+    const handDirY = handLength ? (handTipPoint.y - boardCenter) / handLength : 0;
+    const handBasePoint = {
+        x: boardCenter - handDirX * handTailLength,
+        y: boardCenter - handDirY * handTailLength,
+    };
+    const fullHandLength = handLength + handTailLength;
+    const handMidX = (handTipPoint.x + handBasePoint.x) / 2;
+    const handMidY = (handTipPoint.y + handBasePoint.y) / 2;
 
     const ringLabels = useMemo(() => {
         const step = 5;
@@ -184,6 +261,27 @@ export default function ExploreScreen() {
         return eventDots.length ? eventDots[eventDots.length - 1] : null;
     }, [selectedEventId, timelineEvents, eventDots]);
 
+    const scrollToEventCard = (eventId) => {
+        const y = eventCardOffsetsRef.current[eventId];
+        if (typeof y !== 'number') return;
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - 140), animated: true });
+    };
+
+    const handleSelectEvent = (eventId, shouldScroll = false) => {
+        setSelectedEventId(eventId);
+        if (shouldScroll) {
+            requestAnimationFrame(() => scrollToEventCard(eventId));
+        }
+    };
+
+    useEffect(() => {
+        if (!selectedEventId) return;
+        const existsInFiltered = filteredCardEvents.some((event) => event.id === selectedEventId);
+        if (!existsInFiltered) {
+            setSelectedEventId(null);
+        }
+    }, [filteredCardEvents, selectedEventId]);
+
     const openAddModal = () => {
         setDraftTitle('');
         setDraftDate(new Date());
@@ -207,8 +305,21 @@ export default function ExploreScreen() {
 
     const deleteEvent = (eventId) => {
         if (!eventId || eventId === 'origin') return;
-        setEvents((prev) => prev.filter((event) => event.id !== eventId));
-        setSelectedEventId(null);
+        Alert.alert(
+            'Delete event?',
+            'This event card will be removed from your timeline.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                        setEvents((prev) => prev.filter((event) => event.id !== eventId));
+                        setSelectedEventId(null);
+                    },
+                },
+            ]
+        );
     };
 
     const saveEvent = () => {
@@ -235,40 +346,57 @@ export default function ExploreScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
-                <View style={styles.headerRow}>
-                    <Text style={styles.lifeTitle}>LIFE</Text>
-                </View>
+        <SafeAreaView style={[styles.container, { backgroundColor: ui.screenBg }]}>
+            <TabPageHeader title="Life" variant="minimal" />
+            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
+                <View style={[styles.settingsCard, isWide && styles.settingsCardWide, { backgroundColor: ui.panel }]}>
+                    <View style={styles.compactControlsRow}>
+                        <TouchableOpacity style={[styles.birthButton, { backgroundColor: ui.panelSoft }]} onPress={() => setIsBirthPickerVisible((prev) => !prev)}>
+                            <Text style={[styles.controlLabel, styles.birthLabel, { color: ui.subText }]}>Birth Date</Text>
+                            <Text style={[styles.birthValue, { color: ui.text }]} numberOfLines={1}>
+                                {formatDate(birthDate)}
+                            </Text>
+                        </TouchableOpacity>
 
-                <View style={[styles.controlsWrap, isWide && styles.controlsWrapWide]}>
-                    <TouchableOpacity style={styles.controlCard} onPress={() => setIsBirthPickerVisible((prev) => !prev)}>
-                        <Text style={styles.controlLabel}>Birth Date</Text>
-                        <Text style={styles.controlValue}>{formatDate(birthDate)}</Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.expectancyWrap, { backgroundColor: ui.panelSoft }]}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                                setDraftLifeExpectancy(lifeExpectancy || 75);
+                                setIsLifeExpectancyModalVisible(true);
+                            }}
+                        >
+                            <Text style={[styles.controlLabel, { color: ui.subText }]}>Expectancy</Text>
+                            <Text style={[styles.lifeExpectancyText, { color: ui.text }]}>{lifeExpectancy}y</Text>
+                        </TouchableOpacity>
 
-                    <View style={styles.controlCard}>
-                        <Text style={styles.controlLabel}>Life Expectancy</Text>
-                        <View style={styles.lifeExpectancyRow}>
-                            <TouchableOpacity style={styles.stepBtn} onPress={() => setLifeExpectancy((v) => clamp(v - 1, 30, 120))}>
-                                <Ionicons name="remove" size={16} color="#3B3B3B" />
-                            </TouchableOpacity>
-                            <Text style={styles.lifeExpectancyText}>{lifeExpectancy} yrs</Text>
-                            <TouchableOpacity style={styles.stepBtn} onPress={() => setLifeExpectancy((v) => clamp(v + 1, 30, 120))}>
-                                <Ionicons name="add" size={16} color="#3B3B3B" />
-                            </TouchableOpacity>
+                        <View style={[styles.metricPill, { backgroundColor: ui.panelSoft }]}>
+                            <Text style={[styles.controlLabel, { color: ui.subText }]}>Age</Text>
+                            <Text style={[styles.lifeExpectancyText, { color: ui.text }]}>{formatYears(currentAge)}y</Text>
                         </View>
+
+                        <View style={[styles.metricPill, { backgroundColor: ui.panelSoft }]}>
+                            <Text style={[styles.controlLabel, { color: ui.subText }]}>Passed</Text>
+                            <Text style={[styles.lifeExpectancyText, { color: ui.text }]}>{Math.round(lifeProgress)}%</Text>
+                        </View>
+                    </View>
+
+                    <View style={[styles.progressTrack, { backgroundColor: ui.progressTrack }]}>
+                        <View style={[styles.progressFillBar, { width: `${lifeProgress}%`, backgroundColor: '#F5A3A3' }]} />
                     </View>
                 </View>
 
                 {isBirthPickerVisible && (
-                    <View style={styles.birthPickerCard}>
+                    <View style={[styles.birthPickerCard, { backgroundColor: ui.panel, borderColor: theme.border }]}>
                         <DateTimePicker
                             value={birthDate}
                             mode="date"
                             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                             onChange={(e, value) => {
-                                if (value) setBirthDate(value);
+                                if (value) {
+                                    setBirthDate(value);
+                                    updateBirthDate(value);
+                                }
                                 setIsBirthPickerVisible(false);
                             }}
                             maximumDate={new Date()}
@@ -276,7 +404,7 @@ export default function ExploreScreen() {
                     </View>
                 )}
 
-                <View style={[styles.lifeBoard, { width: boardSize, height: boardSize }]}>
+                <View style={[styles.lifeBoard, { width: boardSize, height: boardSize, backgroundColor: ui.ringBg, shadowColor: theme.mode === 'dark' ? '#000' : '#17181B' }]}>
                     {ringLabels.map((item) => {
                         const passed = item.ageValue <= currentAge;
                         return (
@@ -287,7 +415,7 @@ export default function ExploreScreen() {
                                     {
                                         left: item.point.x - 18,
                                         top: item.point.y - 12,
-                                        color: passed ? '#2E2F33' : '#C2C4C8',
+                                        color: passed ? ui.text : ui.mutedText,
                                     },
                                 ]}
                             >
@@ -296,38 +424,29 @@ export default function ExploreScreen() {
                         );
                     })}
 
-                    <Text style={styles.passText}>This life has passed</Text>
-                    <Text style={styles.progressText}>{Math.round(lifeProgress)}%</Text>
+                    <Text style={[styles.passText, { color: ui.subText, backgroundColor: `${ui.ringBg}E8` }]}>This life has passed</Text>
+                    <Text style={[styles.progressText, { color: ui.text }]}>{Math.round(lifeProgress)}%</Text>
 
                     <View
                         style={[
                             styles.hand,
                             {
-                                width: handLength,
-                                left: handMidX - handLength / 2,
-                                top: handMidY - 1,
+                                width: fullHandLength,
+                                left: handMidX - fullHandLength / 2,
+                                top: handMidY - 1.5,
                                 transform: [{ rotate: `${ageToAngle(currentAge)}deg` }],
+                                backgroundColor: ui.hand,
                             },
                         ]}
                     />
 
-                    <View
-                        style={[
-                            styles.handArrow,
-                            {
-                                left: handTipPoint.x - 4,
-                                top: handTipPoint.y - 6,
-                                transform: [{ rotate: `${ageToAngle(currentAge) + 90}deg` }],
-                            },
-                        ]}
-                    />
-
-                    <View style={[styles.centerDot, { left: boardCenter - 7, top: boardCenter - 7 }]} />
-                    <View style={[styles.progressDot, { left: handTipPoint.x - 4, top: handTipPoint.y - 4 }]} />
+                    <View style={[styles.centerDot, { left: boardCenter - 5, top: boardCenter - 5, backgroundColor: ui.handDot, borderColor: ui.ringEdge }]} />
 
                     {eventDots.map((event) => (
-                        <View
+                        <TouchableOpacity
                             key={`dot-${event.id}`}
+                            activeOpacity={0.9}
+                            onPress={() => handleSelectEvent(event.id, true)}
                             style={[styles.eventPin, { left: event.point.x - 5, top: event.point.y - 5, backgroundColor: event.color }]}
                         />
                     ))}
@@ -351,8 +470,29 @@ export default function ExploreScreen() {
                     })()}
                 </View>
 
+                <View style={styles.filterRow}>
+                    {EVENT_FILTER_OPTIONS.map((filter) => {
+                        const active = eventFilter === filter;
+                        return (
+                            <TouchableOpacity
+                                key={filter}
+                                style={[
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: active ? theme.primary + '18' : ui.panelSoft,
+                                        borderColor: active ? theme.primary : theme.border,
+                                    },
+                                ]}
+                                onPress={() => setEventFilter(filter)}
+                            >
+                                <Text style={[styles.filterChipText, { color: active ? theme.primary : ui.text }]}>{filter}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
                 <View style={styles.cardsGrid}>
-                    {cardEvents.map((event) => {
+                    {filteredCardEvents.map((event) => {
                         const iconCfg = getIconConfig(event.iconKey);
                         const canEdit = event.id !== 'origin';
                         const isSelected = selectedEventId === event.id;
@@ -360,19 +500,22 @@ export default function ExploreScreen() {
                             <TouchableOpacity
                                 key={event.id}
                                 activeOpacity={0.9}
-                                onPress={() => setSelectedEventId((prev) => (prev === event.id ? null : event.id))}
+                                onPress={() => handleSelectEvent(event.id, false)}
                                 style={[styles.eventCard, { backgroundColor: event.color }]}
+                                onLayout={(e) => {
+                                    eventCardOffsetsRef.current[event.id] = e.nativeEvent.layout.y;
+                                }}
                             >
-                                <View style={styles.daysBadge}>
+                                <View style={[styles.daysBadge, { backgroundColor: ui.badgeBg }]}>
                                     <Text style={[styles.daysBadgeText, { color: event.color }]}>{event.id === 'origin' ? birthDays : daysSince(event.date)} ds</Text>
                                 </View>
                                 {canEdit && isSelected && (
                                     <View style={styles.cardActions}>
-                                        <TouchableOpacity style={styles.cardActionBtn} onPress={() => openEditModal(event)}>
-                                            <Ionicons name="pencil" size={12} color="#4C4F57" />
+                                        <TouchableOpacity style={[styles.cardActionBtn, { backgroundColor: ui.actionBg }]} onPress={() => openEditModal(event)}>
+                                            <Ionicons name="pencil" size={12} color={ui.text} />
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={styles.cardActionBtn} onPress={() => deleteEvent(event.id)}>
-                                            <Ionicons name="trash-outline" size={12} color="#4C4F57" />
+                                        <TouchableOpacity style={[styles.cardActionBtn, { backgroundColor: ui.actionBg }]} onPress={() => deleteEvent(event.id)}>
+                                            <Ionicons name="trash-outline" size={12} color={ui.text} />
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -383,34 +526,41 @@ export default function ExploreScreen() {
                         );
                     })}
 
-                    <TouchableOpacity style={styles.addCard} onPress={openAddModal}>
-                        <Ionicons name="add" size={52} color="#BFBFBF" />
+                    <TouchableOpacity style={[styles.addCard, { borderColor: theme.border, backgroundColor: ui.panel }]} onPress={openAddModal}>
+                        <Ionicons name="add" size={52} color={ui.subText} />
                     </TouchableOpacity>
                 </View>
             </ScrollView>
 
             <Modal visible={isAddEventVisible} transparent animationType="fade" onRequestClose={() => setIsAddEventVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.modalOverlay, { backgroundColor: ui.modalOverlay }]}>
+                    <View style={[styles.modalCard, { backgroundColor: ui.panel }]}>
+                        <View style={styles.modalHeaderRow}>
+                            <TouchableOpacity style={[styles.closeFab, { backgroundColor: ui.panelSoft }]} onPress={() => setIsAddEventVisible(false)}>
+                                <Ionicons name="close" size={20} color={ui.text} />
+                            </TouchableOpacity>
+                        </View>
                         <View style={styles.modalTopRow}>
-                            <TextInput
-                                style={styles.titleInput}
-                                placeholder="Enter The Title"
-                                placeholderTextColor="#B6B8BC"
-                                value={draftTitle}
-                                onChangeText={setDraftTitle}
-                                autoFocus
-                            />
-                            <TouchableOpacity style={styles.saveFab} onPress={saveEvent}>
-                                <Ionicons name="checkmark" size={28} color="white" />
+                            <View style={[styles.titleInputWrap, { backgroundColor: ui.panelSoft, borderColor: theme.border }]}>
+                                <TextInput
+                                    style={[styles.titleInput, { color: ui.text }]}
+                                    placeholder="Enter title"
+                                    placeholderTextColor={ui.subText}
+                                    value={draftTitle}
+                                    onChangeText={setDraftTitle}
+                                    autoFocus
+                                />
+                            </View>
+                            <TouchableOpacity style={[styles.saveFab, { backgroundColor: theme.primary }]} onPress={saveEvent}>
+                                <Ionicons name="checkmark" size={22} color="white" />
                             </TouchableOpacity>
                         </View>
 
                         <View style={styles.dateWheelWrap}>
-                            <TouchableOpacity style={styles.dateSelector} onPress={() => setIsDraftDatePickerVisible((prev) => !prev)}>
-                                <Ionicons name="calendar-outline" size={20} color="#6C7178" />
-                                <Text style={styles.dateSelectorText}>{formatDate(draftDate)}</Text>
-                                <Ionicons name={isDraftDatePickerVisible ? 'chevron-up' : 'chevron-down'} size={18} color="#6C7178" />
+                            <TouchableOpacity style={[styles.dateSelector, { backgroundColor: ui.panelSoft }]} onPress={() => setIsDraftDatePickerVisible((prev) => !prev)}>
+                                <Ionicons name="calendar-outline" size={20} color={ui.subText} />
+                                <Text style={[styles.dateSelectorText, { color: ui.text }]}>{formatDate(draftDate)}</Text>
+                                <Ionicons name={isDraftDatePickerVisible ? 'chevron-up' : 'chevron-down'} size={18} color={ui.subText} />
                             </TouchableOpacity>
 
                             {isDraftDatePickerVisible && (
@@ -436,10 +586,10 @@ export default function ExploreScreen() {
                                         style={[styles.iconChoice, { backgroundColor: item.color }]}
                                         onPress={() => setDraftIconKey(item.key)}
                                     >
-                                        <Ionicons name={item.icon} size={30} color="white" />
+                                        <Ionicons name={item.icon} size={25} color="white" />
                                         {selected && (
-                                            <View style={styles.selectedMark}>
-                                                <Ionicons name="checkmark-circle" size={22} color="#3F3F51" />
+                                            <View style={[styles.selectedMark, { backgroundColor: ui.panel }]}>
+                                                <Ionicons name="checkmark-circle" size={20} color={theme.mode === 'dark' ? theme.text : '#3F3F51'} />
                                             </View>
                                         )}
                                     </TouchableOpacity>
@@ -448,6 +598,61 @@ export default function ExploreScreen() {
                         </View>
                     </View>
                 </KeyboardAvoidingView>
+            </Modal>
+
+            <Modal
+                visible={isLifeExpectancyModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsLifeExpectancyModalVisible(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: ui.modalOverlay }]}>
+                    <View style={[styles.lifeExpectancyModal, { backgroundColor: ui.panel, borderColor: theme.border }]}>
+                        <View style={styles.lifeModalHeader}>
+                            <Text style={styles.lifeModalHeaderTitle}>Life Expectancy</Text>
+                        </View>
+
+                        <View style={styles.lifeModalBody}>
+                            <Text style={[styles.lifeModalHint, { color: ui.subText }]}>Default is 75 years</Text>
+
+                            <View style={styles.lifeModalValueRow}>
+                                <TouchableOpacity
+                                    style={[styles.stepBtn, { backgroundColor: ui.panelAlt }]}
+                                    onPress={() => setDraftLifeExpectancy((v) => clamp(v - LIFE_EXPECTANCY_STEP, 30, 120))}
+                                >
+                                    <Ionicons name="remove" size={16} color={ui.text} />
+                                </TouchableOpacity>
+                                <Text style={[styles.lifeModalValueText, { color: ui.text }]}>{draftLifeExpectancy} yrs</Text>
+                                <TouchableOpacity
+                                    style={[styles.stepBtn, { backgroundColor: ui.panelAlt }]}
+                                    onPress={() => setDraftLifeExpectancy((v) => clamp(v + LIFE_EXPECTANCY_STEP, 30, 120))}
+                                >
+                                    <Ionicons name="add" size={16} color={ui.text} />
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={[styles.lifeModalRange, { color: ui.subText }]}>Range: 30 - 120 years</Text>
+
+                            <View style={styles.lifeModalActions}>
+                                <TouchableOpacity
+                                    style={[styles.lifeActionBtn, { backgroundColor: ui.panelSoft }]}
+                                    onPress={() => setIsLifeExpectancyModalVisible(false)}
+                                >
+                                    <Text style={[styles.lifeActionText, { color: ui.text }]}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.lifeActionBtn, { backgroundColor: theme.primary }]}
+                                    onPress={() => {
+                                        setLifeExpectancy(draftLifeExpectancy);
+                                        setIsLifeExpectancyModalVisible(false);
+                                    }}
+                                >
+                                    <Text style={[styles.lifeActionText, { color: '#FFFFFF' }]}>Save</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
             </Modal>
         </SafeAreaView>
     );
@@ -461,57 +666,71 @@ const styles = StyleSheet.create({
     content: {
         paddingHorizontal: 12,
         paddingBottom: 30,
+        paddingTop: 14,
     },
     contentWide: {
         maxWidth: 980,
         width: '100%',
         alignSelf: 'center',
     },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        marginTop: 8,
-        marginBottom: 10,
-        paddingHorizontal: 8,
-    },
-    lifeTitle: {
-        fontSize: 64,
-        lineHeight: 72,
-        fontWeight: '800',
-        letterSpacing: 2,
-        color: '#2E2E2E',
-    },
-    controlsWrap: {
-        flexDirection: 'row',
-        gap: 10,
-        marginBottom: 10,
-    },
-    controlsWrapWide: {
-        gap: 14,
-    },
-    controlCard: {
-        flex: 1,
+    settingsCard: {
         backgroundColor: '#F3F3F3',
-        borderRadius: 14,
-        paddingHorizontal: 12,
+        borderRadius: 18,
+        paddingHorizontal: 14,
         paddingVertical: 10,
+        marginBottom: 8,
+    },
+    settingsCardWide: {
+        paddingHorizontal: 16,
+    },
+    compactControlsRow: {
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 8,
+    },
+    birthButton: {
+        flex: 0.82,
+        minHeight: 50,
+        borderRadius: 12,
+        backgroundColor: '#ECECEE',
+        paddingHorizontal: 8,
+        paddingVertical: 7,
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    expectancyWrap: {
+        flex: 1,
+        minHeight: 50,
+        borderRadius: 12,
+        backgroundColor: '#ECECEE',
+        paddingHorizontal: 8,
+        paddingVertical: 7,
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    metricPill: {
+        flex: 0.8,
+        minHeight: 50,
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 7,
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
     },
     controlLabel: {
-        fontSize: 12,
+        fontSize: 11,
         color: '#8B8B8B',
         fontWeight: '700',
-        marginBottom: 4,
+        marginBottom: 0,
     },
-    controlValue: {
-        fontSize: 17,
+    birthLabel: {
+        fontSize: 10,
+    },
+    birthValue: {
+        fontSize: 13,
         color: '#2F2F2F',
         fontWeight: '700',
-    },
-    lifeExpectancyRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        marginTop: 4,
     },
     stepBtn: {
         width: 28,
@@ -522,12 +741,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     lifeExpectancyText: {
-        fontSize: 17,
+        fontSize: 15,
         color: '#2F2F2F',
         fontWeight: '700',
+        marginTop: 4,
+    },
+    progressTrack: {
+        height: 9,
+        borderRadius: 999,
+        backgroundColor: '#D9DBDF',
+        overflow: 'hidden',
+    },
+    progressFillBar: {
+        height: '100%',
+        borderRadius: 999,
+        backgroundColor: '#50555E',
+        minWidth: 8,
     },
     birthPickerCard: {
         backgroundColor: '#F3F3F3',
+        borderWidth: 1,
         borderRadius: 14,
         marginBottom: 12,
         paddingVertical: 4,
@@ -577,38 +810,19 @@ const styles = StyleSheet.create({
     },
     hand: {
         position: 'absolute',
-        height: 2,
-        borderRadius: 1,
+        height: 3,
+        borderRadius: 2,
         backgroundColor: '#3B3C41',
-        zIndex: 1,
-    },
-    handArrow: {
-        position: 'absolute',
-        width: 0,
-        height: 0,
-        borderLeftWidth: 4,
-        borderRightWidth: 4,
-        borderBottomWidth: 10,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        borderBottomColor: '#3B3C41',
         zIndex: 1,
     },
     centerDot: {
         position: 'absolute',
-        width: 14,
-        height: 14,
-        borderRadius: 7,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
         backgroundColor: '#3A3B40',
         borderWidth: 2,
         borderColor: '#F5F5F5',
-    },
-    progressDot: {
-        position: 'absolute',
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#3A3B40',
     },
     eventPin: {
         position: 'absolute',
@@ -635,6 +849,22 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textAlign: 'center',
     },
+    filterRow: {
+        flexDirection: 'row',
+        gap: 8,
+        paddingHorizontal: 8,
+        marginBottom: 10,
+    },
+    filterChip: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    filterChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     cardsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -642,25 +872,25 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
     },
     eventCard: {
-        width: '48%',
-        borderRadius: 18,
-        paddingTop: 12,
-        paddingBottom: 10,
+        width: '47.5%',
+        borderRadius: 16,
+        paddingTop: 10,
+        paddingBottom: 8,
         alignItems: 'center',
-        minHeight: 122,
-        marginBottom: 10,
+        minHeight: 104,
+        marginBottom: 8,
     },
     daysBadge: {
         position: 'absolute',
-        top: 10,
-        left: 10,
-        borderRadius: 12,
+        top: 8,
+        left: 8,
+        borderRadius: 10,
         backgroundColor: 'rgba(255,255,255,0.9)',
-        paddingHorizontal: 10,
+        paddingHorizontal: 8,
         paddingVertical: 2,
     },
     daysBadgeText: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: '700',
     },
     cardActions: {
@@ -679,8 +909,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cardTitle: {
-        fontSize: 16,
-        lineHeight: 19,
+        fontSize: 14,
+        lineHeight: 17,
         color: 'white',
         fontWeight: '700',
         textAlign: 'center',
@@ -688,22 +918,22 @@ const styles = StyleSheet.create({
         width: '88%',
     },
     cardDate: {
-        fontSize: 13,
-        lineHeight: 16,
+        fontSize: 12,
+        lineHeight: 14,
         color: 'white',
         fontWeight: '500',
         opacity: 0.95,
     },
     addCard: {
-        width: '48%',
-        minHeight: 122,
-        borderRadius: 18,
+        width: '47.5%',
+        minHeight: 104,
+        borderRadius: 16,
         borderWidth: 3,
         borderColor: '#C4C4C4',
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 8,
     },
     modalOverlay: {
         flex: 1,
@@ -714,30 +944,52 @@ const styles = StyleSheet.create({
     },
     modalCard: {
         width: '100%',
-        maxWidth: 760,
-        borderRadius: 20,
+        maxWidth: 520,
+        borderRadius: 18,
         backgroundColor: '#ECECEC',
-        padding: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    modalHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginBottom: 2,
+    },
+    closeFab: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#DCDDDF',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     modalTopRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 8,
+        marginBottom: 10,
+        gap: 8,
+    },
+    titleInputWrap: {
+        flex: 1,
+        height: 46,
+        borderRadius: 12,
+        borderWidth: 1,
+        justifyContent: 'center',
+        paddingHorizontal: 12,
     },
     titleInput: {
         flex: 1,
-        fontSize: 30,
-        lineHeight: 36,
-        fontWeight: '500',
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '600',
         color: '#3D3F43',
-        marginRight: 12,
-        paddingVertical: 4,
+        paddingVertical: 0,
     },
     saveFab: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 46,
+        height: 46,
+        borderRadius: 23,
         backgroundColor: '#34D1BF',
         justifyContent: 'center',
         alignItems: 'center',
@@ -757,29 +1009,93 @@ const styles = StyleSheet.create({
     },
     dateSelectorText: {
         flex: 1,
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: '#4A4E55',
     },
     iconGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 10,
         justifyContent: 'space-between',
     },
     iconChoice: {
-        width: '15.8%',
+        width: '15.2%',
         aspectRatio: 1,
         borderRadius: 999,
         justifyContent: 'center',
         alignItems: 'center',
-        minWidth: 60,
+        minWidth: 52,
     },
     selectedMark: {
         position: 'absolute',
-        right: -2,
-        bottom: -2,
+        right: -1,
+        bottom: -1,
         backgroundColor: '#ECECEC',
-        borderRadius: 14,
+        borderRadius: 12,
+    },
+    lifeExpectancyModal: {
+        width: '92%',
+        maxWidth: 360,
+        borderRadius: 18,
+        overflow: 'hidden',
+        borderWidth: 1,
+    },
+    lifeModalHeader: {
+        backgroundColor: '#2E58A9',
+        minHeight: 56,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 12,
+    },
+    lifeModalHeaderTitle: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        lineHeight: 28,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    lifeModalBody: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 14,
+    },
+    lifeModalHint: {
+        fontSize: 13,
+        textAlign: 'center',
+        marginBottom: 12,
+        fontWeight: '600',
+    },
+    lifeModalValueRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    lifeModalValueText: {
+        fontSize: 30,
+        lineHeight: 34,
+        fontWeight: '900',
+    },
+    lifeModalRange: {
+        marginTop: 8,
+        textAlign: 'center',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    lifeModalActions: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 14,
+    },
+    lifeActionBtn: {
+        flex: 1,
+        minHeight: 42,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    lifeActionText: {
+        fontSize: 14,
+        fontWeight: '800',
     },
 });

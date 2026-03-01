@@ -1,8 +1,9 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import LottieView from 'lottie-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import LottieView from '../../components/LottieCompat';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { useTime } from '../../context/TimeContext';
@@ -15,10 +16,12 @@ import TodayModals from './today/components/TodayModals';
 import SidebarDrawer from './today/components/SidebarDrawer';
 
 export default function TodayScreen() {
-    const { theme, isDark, toggleTheme } = useTheme();
+    const { theme } = useTheme();
     const { userData, isUserLoading, userError } = useUser();
     const { playSuccessChime } = useTime();
+    const insets = useSafeAreaInsets();
     const navigation = useNavigation();
+    const scrollRef = React.useRef(null);
 
     const {
         habits,
@@ -39,11 +42,15 @@ export default function TodayScreen() {
         newHabitName,
         setNewHabitName,
         editingHabitId,
-        isOptionsVisible,
-        setIsOptionsVisible,
-        selectedHabit,
-        reminderTime,
-        setReminderTime,
+        habitFrequency,
+        setHabitFrequency,
+        habitPriority,
+        setHabitPriority,
+        habitCategory,
+        setHabitCategory,
+        habitFrequencyOptions,
+        habitPriorityOptions,
+        habitCategoryOptions,
 
         isProjectModalVisible,
         editingProjectId,
@@ -58,10 +65,10 @@ export default function TodayScreen() {
         openCreateHabitModal,
         closeHabitModal,
         openEditModal,
-        openOptions,
         toggleHabit,
         handleAddOrUpdateHabit,
         handleDeleteHabit,
+        addHabitFromTemplate,
 
         loadHabits,
         loadProjects,
@@ -85,10 +92,22 @@ export default function TodayScreen() {
         dynamicBackdropOpacity,
     } = useSidebarDrawer({ navigation, theme });
 
+    useFocusEffect(
+        React.useCallback(() => {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+            });
+        }, [])
+    );
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={{ flex: 1 }}>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <ScrollView
+                    ref={scrollRef}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.scrollContent}
+                >
                     <TodayHeaderSection
                         styles={styles}
                         theme={theme}
@@ -99,7 +118,7 @@ export default function TodayScreen() {
                         quoteError={quoteError}
                         weekDays={weekDays}
                         onOpenSidebar={openSidebar}
-                        onOpenHabitModal={openCreateHabitModal}
+                        onOpenSettings={() => navigation.navigate('Settings')}
                         onRetryQuote={fetchQuote}
                     />
 
@@ -130,13 +149,28 @@ export default function TodayScreen() {
                         onToggleHabit={toggleHabit}
                         onEditHabit={openEditModal}
                         onDeleteHabit={handleDeleteHabit}
-                        onOpenOptions={openOptions}
                         onOpenHabitModal={openCreateHabitModal}
+                        onAddHabitTemplate={addHabitFromTemplate}
                     />
 
                     <View style={{ height: 40 }} />
                 </ScrollView>
             </View>
+
+            <TouchableOpacity
+                style={[
+                    styles.floatingAddButton,
+                    {
+                        backgroundColor: theme.primary,
+                        shadowColor: theme.shadow,
+                        bottom: insets.bottom + 96,
+                    },
+                ]}
+                onPress={openCreateHabitModal}
+                activeOpacity={0.85}
+            >
+                <Ionicons name="add" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
 
             <TodayModals
                 styles={styles}
@@ -146,14 +180,16 @@ export default function TodayScreen() {
                 editingHabitId={editingHabitId}
                 newHabitName={newHabitName}
                 setNewHabitName={setNewHabitName}
-                reminderTime={reminderTime}
-                setReminderTime={setReminderTime}
+                habitFrequency={habitFrequency}
+                setHabitFrequency={setHabitFrequency}
+                habitPriority={habitPriority}
+                setHabitPriority={setHabitPriority}
+                habitCategory={habitCategory}
+                setHabitCategory={setHabitCategory}
+                habitFrequencyOptions={habitFrequencyOptions}
+                habitPriorityOptions={habitPriorityOptions}
+                habitCategoryOptions={habitCategoryOptions}
                 handleAddOrUpdateHabit={handleAddOrUpdateHabit}
-                isOptionsVisible={isOptionsVisible}
-                setIsOptionsVisible={setIsOptionsVisible}
-                selectedHabit={selectedHabit}
-                openEditModal={openEditModal}
-                handleDeleteHabit={handleDeleteHabit}
                 isProjectModalVisible={isProjectModalVisible}
                 closeProjectModal={closeProjectModal}
                 editingProjectId={editingProjectId}
@@ -170,8 +206,6 @@ export default function TodayScreen() {
                 userData={userData}
                 isUserLoading={isUserLoading}
                 userError={userError}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
                 isSidebarVisible={isSidebarVisible}
                 dynamicBackdropOpacity={dynamicBackdropOpacity}
                 displayX={displayX}
@@ -210,10 +244,40 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         marginBottom: 24,
     },
+    menuButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(148, 163, 184, 0.25)',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
+    },
+    menuGlyph: {
+        width: 24,
+        height: 18,
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    menuBar: {
+        height: 2.4,
+        borderRadius: 999,
+        width: 20,
+    },
+    menuBarMiddle: {
+        width: 16,
+    },
+    menuBarShort: {
+        width: 11,
+    },
     todayAnchor: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         paddingVertical: 10,
         paddingLeft: 10,
         paddingRight: 18,
@@ -230,13 +294,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
+    todayProfileText: {
+        marginRight: 10,
+        alignItems: 'flex-end',
+    },
     avatar: {
         width: 38,
         height: 38,
         borderRadius: 19,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
         overflow: 'hidden',
     },
     avatarImage: {
@@ -266,20 +333,43 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 8,
     },
+    floatingAddButton: {
+        position: 'absolute',
+        right: 22,
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.28,
+        shadowRadius: 14,
+        elevation: 10,
+        zIndex: 50,
+    },
     greetingContainer: {
         paddingHorizontal: 24,
-        marginBottom: 32,
+        marginBottom: 28,
     },
-    greeting: {
-        fontSize: 28,
+    greetingEyebrow: {
+        fontSize: 12,
         fontWeight: '700',
-        letterSpacing: -0.8,
+        textTransform: 'uppercase',
+        letterSpacing: 0.9,
+        opacity: 0.9,
     },
-    subGreeting: {
-        fontSize: 16,
+    greetingName: {
+        fontSize: 34,
+        lineHeight: 38,
+        fontWeight: '800',
+        letterSpacing: -1.1,
+        marginTop: 2,
+    },
+    greetingSupport: {
+        fontSize: 15,
         marginTop: 6,
         fontWeight: '500',
-        opacity: 0.7,
+        opacity: 0.78,
     },
     quoteContainer: {
         paddingHorizontal: 24,
@@ -353,6 +443,157 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         marginBottom: 32,
     },
+    widgetsSection: {
+        paddingHorizontal: 24,
+        marginBottom: 26,
+    },
+    widgetsTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        letterSpacing: -0.4,
+        marginBottom: 12,
+    },
+    widgetsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 12,
+    },
+    widgetCard: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+        elevation: 2,
+    },
+    widgetTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    widgetIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    widgetAction: {
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    widgetLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    widgetValue: {
+        fontSize: 23,
+        lineHeight: 28,
+        fontWeight: '800',
+        letterSpacing: -0.6,
+    },
+    widgetMeta: {
+        marginTop: 2,
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    widgetSubAction: {
+        marginTop: 10,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    widgetSubActionText: {
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    lifeWidgetCard: {
+        borderWidth: 1,
+        borderRadius: 22,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.06,
+        shadowRadius: 16,
+        elevation: 2,
+    },
+    lifeWidgetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    lifeWidgetTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    lifeBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 999,
+    },
+    lifeBadgeText: {
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    lifeMetricRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    lifeMetricItem: {
+        flex: 1,
+    },
+    lifeMetricLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    lifeMetricValue: {
+        fontSize: 16,
+        fontWeight: '800',
+        letterSpacing: -0.3,
+    },
+    lifeProgressTrack: {
+        height: 9,
+        borderRadius: 999,
+        overflow: 'hidden',
+        marginBottom: 10,
+    },
+    lifeProgressFill: {
+        height: '100%',
+        borderRadius: 999,
+        minWidth: 6,
+    },
+    lifeMapRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+    },
+    lifeMapSegment: {
+        width: '4.4%',
+        height: 8,
+        borderRadius: 3,
+    },
+    lifeEmptyHint: {
+        marginTop: 10,
+        fontSize: 12,
+        fontWeight: '600',
+        lineHeight: 18,
+    },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -417,33 +658,53 @@ const styles = StyleSheet.create({
         opacity: 0.5,
     },
     emptyStateContainer: {
-        padding: 32,
-        borderRadius: 30,
+        padding: 14,
+        borderRadius: 20,
         alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: 10,
+        justifyContent: 'flex-start',
+        marginTop: 0,
+        marginBottom: 4,
     },
     emptyStateTitle: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: '800',
-        marginTop: 16,
-        marginBottom: 8,
+        marginTop: 0,
+        marginBottom: 4,
     },
     emptyStateSubtext: {
-        fontSize: 15,
+        fontSize: 13,
         textAlign: 'center',
-        marginBottom: 24,
-        paddingHorizontal: 20,
+        marginBottom: 6,
+        paddingHorizontal: 8,
     },
     emptyStateButton: {
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 20,
+        marginTop: 4,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
     },
     emptyStateButtonText: {
         color: 'white',
         fontWeight: '800',
-        fontSize: 15,
+        fontSize: 13,
+    },
+    quickHabitRow: {
+        width: '100%',
+        marginTop: 8,
+        gap: 8,
+    },
+    quickHabitButton: {
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingVertical: 9,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    quickHabitText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
     sectionStateCard: {
         borderWidth: 1,
@@ -531,9 +792,6 @@ const styles = StyleSheet.create({
         marginLeft: 4,
         opacity: 0.6,
     },
-    menuButton: {
-        padding: 8,
-    },
     swipeActionsWrap: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -597,6 +855,42 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
     },
+    optionGroup: {
+        marginBottom: 16,
+    },
+    optionRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    optionChip: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+    },
+    optionChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    habitMetaRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginTop: 4,
+    },
+    habitMetaChip: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    habitMetaText: {
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
     timeInput: {
         width: 80,
         borderRadius: 12,
@@ -617,45 +911,6 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: '700',
-    },
-    optionsOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-    },
-    optionsContent: {
-        width: '100%',
-        borderRadius: 28,
-        padding: 24,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 10,
-    },
-    optionsHeader: {
-        marginBottom: 20,
-        paddingBottom: 15,
-        borderBottomWidth: 1,
-    },
-    optionsTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        textAlign: 'center',
-    },
-    optionItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-    },
-    optionText: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 12,
-    },
-    deleteOption: {
-        marginTop: 4,
     },
     sidebarOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -683,30 +938,42 @@ const styles = StyleSheet.create({
         zIndex: 20,
     },
     sidebarHeader: {
+        marginBottom: 18,
+    },
+    sidebarHeaderRow: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 40,
+        paddingRight: 42,
     },
     sidebarAvatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: 62,
+        height: 62,
+        borderRadius: 31,
         backgroundColor: '#D1FAE5',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 16,
-        borderWidth: 2,
+        marginRight: 12,
+        borderWidth: 1.5,
         overflow: 'hidden',
     },
+    sidebarIdentity: {
+        flex: 1,
+    },
     sidebarName: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '800',
         letterSpacing: -0.5,
     },
+    sidebarSubtext: {
+        marginTop: 2,
+        fontSize: 12,
+        fontWeight: '600',
+    },
     closeSidebarButton: {
         position: 'absolute',
-        top: 0,
+        top: 4,
         right: 0,
-        padding: 12,
+        padding: 8,
     },
     sidebarDivider: {
         height: 1,
@@ -726,32 +993,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         marginLeft: 16,
     },
-    cancelOption: {
-        marginTop: 15,
-        paddingTop: 15,
-        borderTopWidth: 1,
-        alignItems: 'center',
-    },
-    cancelText: {
-        fontSize: 16,
-        fontWeight: '700',
-    },
     sidebarScroll: {
         flex: 1,
     },
     sidebarScrollContent: {
         paddingBottom: 40,
-    },
-    themeToggleContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-    },
-    themeToggleLabel: {
-        flexDirection: 'row',
-        alignItems: 'center',
     },
     quoteErrorWrap: {
         alignItems: 'flex-start',
@@ -764,12 +1010,11 @@ const styles = StyleSheet.create({
     sidebarInfoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 6,
+        marginTop: 4,
     },
     sidebarInfoText: {
-        marginTop: 6,
-        fontSize: 12,
+        marginLeft: 6,
+        fontSize: 11,
         fontWeight: '600',
-        textAlign: 'center',
     },
 });

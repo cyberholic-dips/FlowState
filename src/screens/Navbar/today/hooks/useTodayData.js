@@ -3,7 +3,20 @@ import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { storage } from '../../../../utils/storage';
+import { syncHabitsToWidget } from '../../../../utils/widgetSync';
 import { NotificationService } from '../../../../utils/NotificationService';
+
+const LIFE_SETTINGS_KEY = 'lifeIndex';
+const DEFAULT_LIFE_EXPECTANCY = 75;
+export const HABIT_FREQUENCY_OPTIONS = ['Daily', 'Weekdays', 'Weekly'];
+export const HABIT_PRIORITY_OPTIONS = ['Low', 'Medium', 'High'];
+export const HABIT_CATEGORY_OPTIONS = ['Health', 'Learning', 'Work', 'Mindset', 'Custom'];
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const yearsSince = (start, end = new Date()) => {
+    const ms = new Date(end).getTime() - new Date(start).getTime();
+    return ms / (1000 * 60 * 60 * 24 * 365.2425);
+};
 
 export function useTodayData({ playSuccessChime }) {
     const [habits, setHabits] = useState([]);
@@ -17,13 +30,20 @@ export function useTodayData({ playSuccessChime }) {
     const [quote, setQuote] = useState(null);
     const [loadingQuote, setLoadingQuote] = useState(true);
     const [quoteError, setQuoteError] = useState(null);
+    const [lifeWidget, setLifeWidget] = useState({
+        birthDate: null,
+        lifeExpectancy: DEFAULT_LIFE_EXPECTANCY,
+        ageYears: 0,
+        remainingYears: DEFAULT_LIFE_EXPECTANCY,
+        passedPercent: 0,
+    });
 
     const [isHabitModalVisible, setIsHabitModalVisible] = useState(false);
     const [newHabitName, setNewHabitName] = useState('');
     const [editingHabitId, setEditingHabitId] = useState(null);
-    const [isOptionsVisible, setIsOptionsVisible] = useState(false);
-    const [selectedHabit, setSelectedHabit] = useState(null);
-    const [reminderTime, setReminderTime] = useState('09:00');
+    const [habitFrequency, setHabitFrequency] = useState(HABIT_FREQUENCY_OPTIONS[0]);
+    const [habitPriority, setHabitPriority] = useState(HABIT_PRIORITY_OPTIONS[1]);
+    const [habitCategory, setHabitCategory] = useState(HABIT_CATEGORY_OPTIONS[0]);
 
     const [isProjectModalVisible, setIsProjectModalVisible] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
@@ -39,19 +59,6 @@ export function useTodayData({ playSuccessChime }) {
         setHabitsError(null);
         try {
             const storedHabits = await storage.getHabits();
-            if (storedHabits.length === 0) {
-                const initialHabits = [
-                    { id: '1', name: 'Morning Meditation', streak: 5, completedDates: [currentDateStr] },
-                    { id: '2', name: 'Read 20 Pages', streak: 12, completedDates: [] },
-                    { id: '3', name: 'Hydration Goal (2L)', streak: 3, completedDates: [currentDateStr] },
-                    { id: '4', name: 'Evening Reflection', streak: 0, completedDates: [] },
-                    { id: '5', name: 'No Screens after 10PM', streak: 8, completedDates: [] },
-                ];
-                await storage.saveHabits(initialHabits);
-                setHabits(initialHabits);
-                return;
-            }
-
             setHabits(storedHabits);
         } catch (error) {
             setHabitsError('Could not load habits right now.');
@@ -59,7 +66,7 @@ export function useTodayData({ playSuccessChime }) {
         } finally {
             setLoadingHabits(false);
         }
-    }, [currentDateStr]);
+    }, []);
 
     const loadProjects = useCallback(async () => {
         setLoadingProjects(true);
@@ -72,6 +79,38 @@ export function useTodayData({ playSuccessChime }) {
             setProjects([]);
         } finally {
             setLoadingProjects(false);
+        }
+    }, []);
+
+    const loadLifeWidget = useCallback(async () => {
+        try {
+            const settings = await storage.getSettings();
+            const saved = settings?.[LIFE_SETTINGS_KEY];
+            const birthDate = saved?.birthDate ? new Date(saved.birthDate) : null;
+            const lifeExpectancy = clamp(
+                typeof saved?.lifeExpectancy === 'number' ? saved.lifeExpectancy : DEFAULT_LIFE_EXPECTANCY,
+                30,
+                120
+            );
+            const ageYears = birthDate ? clamp(yearsSince(birthDate), 0, 130) : 0;
+            const passedPercent = clamp((ageYears / lifeExpectancy) * 100, 0, 100);
+            const remainingYears = clamp(lifeExpectancy - ageYears, 0, 120);
+
+            setLifeWidget({
+                birthDate: birthDate ? birthDate.toISOString() : null,
+                lifeExpectancy,
+                ageYears,
+                remainingYears,
+                passedPercent,
+            });
+        } catch (error) {
+            setLifeWidget({
+                birthDate: null,
+                lifeExpectancy: DEFAULT_LIFE_EXPECTANCY,
+                ageYears: 0,
+                remainingYears: DEFAULT_LIFE_EXPECTANCY,
+                passedPercent: 0,
+            });
         }
     }, []);
 
@@ -104,13 +143,22 @@ export function useTodayData({ playSuccessChime }) {
         useCallback(() => {
             loadHabits();
             loadProjects();
+            loadLifeWidget();
             setToday(new Date());
-        }, [loadHabits, loadProjects])
+        }, [loadHabits, loadProjects, loadLifeWidget])
     );
 
     useEffect(() => {
         fetchQuote();
     }, [fetchQuote]);
+
+    useEffect(() => {
+        syncHabitsToWidget({ habits, dateStr: currentDateStr });
+    }, [habits, currentDateStr]);
+
+    useEffect(() => {
+        NotificationService.syncFixedDailyHabitReminders(habits.length > 0).catch(() => null);
+    }, [habits.length]);
 
     const isCompleted = useCallback((habit) => {
         return habit.completedDates && habit.completedDates.includes(currentDateStr);
@@ -131,7 +179,9 @@ export function useTodayData({ playSuccessChime }) {
     const closeHabitModal = useCallback(() => {
         setIsHabitModalVisible(false);
         setNewHabitName('');
-        setReminderTime('09:00');
+        setHabitFrequency(HABIT_FREQUENCY_OPTIONS[0]);
+        setHabitPriority(HABIT_PRIORITY_OPTIONS[1]);
+        setHabitCategory(HABIT_CATEGORY_OPTIONS[0]);
         setEditingHabitId(null);
     }, []);
 
@@ -144,14 +194,10 @@ export function useTodayData({ playSuccessChime }) {
         if (!habit) return;
         setEditingHabitId(habit.id);
         setNewHabitName(habit.name);
-        setReminderTime(habit.reminderTime || '09:00');
+        setHabitFrequency(habit.frequency || HABIT_FREQUENCY_OPTIONS[0]);
+        setHabitPriority(habit.priority || HABIT_PRIORITY_OPTIONS[1]);
+        setHabitCategory(habit.category || HABIT_CATEGORY_OPTIONS[0]);
         setIsHabitModalVisible(true);
-        setIsOptionsVisible(false);
-    }, []);
-
-    const openOptions = useCallback((habit) => {
-        setSelectedHabit(habit);
-        setIsOptionsVisible(true);
     }, []);
 
     const toggleHabit = useCallback(async (id) => {
@@ -175,23 +221,26 @@ export function useTodayData({ playSuccessChime }) {
         try {
             setHabitsError(null);
             let updatedHabits;
+            const habitPayload = {
+                name: newHabitName,
+                frequency: habitFrequency,
+                priority: habitPriority,
+                category: habitCategory,
+            };
             if (editingHabitId) {
-                updatedHabits = await storage.updateHabit(editingHabitId, { name: newHabitName, reminderTime });
+                updatedHabits = await storage.updateHabit(editingHabitId, habitPayload);
             } else {
-                updatedHabits = await storage.addHabit({ name: newHabitName, reminderTime });
+                updatedHabits = await storage.addHabit(habitPayload);
             }
 
-            if (reminderTime) {
-                const habitId = editingHabitId || updatedHabits[updatedHabits.length - 1].id;
-                await NotificationService.scheduleHabitReminder(habitId, newHabitName, reminderTime);
-            }
-
+            // Update UI immediately after create/edit so widgets and sections refresh without re-focus.
             setHabits(updatedHabits);
+
             closeHabitModal();
         } catch (error) {
             setHabitsError('Could not save this habit.');
         }
-    }, [newHabitName, editingHabitId, reminderTime, closeHabitModal]);
+    }, [newHabitName, editingHabitId, habitFrequency, habitPriority, habitCategory, closeHabitModal]);
 
     const handleDeleteHabit = useCallback(async (id) => {
         if (!id) return;
@@ -200,18 +249,15 @@ export function useTodayData({ playSuccessChime }) {
             'Delete Habit',
             'Are you sure you want to delete this habit? This action cannot be undone.',
             [
-                { text: 'Cancel', style: 'cancel', onPress: () => setIsOptionsVisible(false) },
+                { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             setHabitsError(null);
-                            await NotificationService.cancelNotification(`habit-${id}`);
                             const updatedHabits = await storage.deleteHabit(id);
                             setHabits(updatedHabits);
-                            setIsOptionsVisible(false);
-                            setSelectedHabit(null);
                         } catch (error) {
                             setHabitsError('Could not delete this habit.');
                         }
@@ -219,6 +265,24 @@ export function useTodayData({ playSuccessChime }) {
                 },
             ]
         );
+    }, []);
+
+    const addHabitFromTemplate = useCallback(async (name) => {
+        const cleanName = (name || '').trim();
+        if (!cleanName) return;
+
+        try {
+            setHabitsError(null);
+            const updatedHabits = await storage.addHabit({
+                name: cleanName,
+                frequency: HABIT_FREQUENCY_OPTIONS[0],
+                priority: HABIT_PRIORITY_OPTIONS[1],
+                category: HABIT_CATEGORY_OPTIONS[0],
+            });
+            setHabits(updatedHabits);
+        } catch (error) {
+            setHabitsError('Could not add this habit right now.');
+        }
     }, []);
 
     const closeProjectModal = useCallback(() => {
@@ -330,6 +394,7 @@ export function useTodayData({ playSuccessChime }) {
         quote,
         loadingQuote,
         quoteError,
+        lifeWidget,
         weekDays,
         completedCount,
         isCompleted,
@@ -338,14 +403,17 @@ export function useTodayData({ playSuccessChime }) {
         newHabitName,
         setNewHabitName,
         editingHabitId,
-        isOptionsVisible,
-        setIsOptionsVisible,
-        selectedHabit,
-        reminderTime,
-        setReminderTime,
+        habitFrequency,
+        setHabitFrequency,
+        habitPriority,
+        setHabitPriority,
+        habitCategory,
+        setHabitCategory,
+        habitFrequencyOptions: HABIT_FREQUENCY_OPTIONS,
+        habitPriorityOptions: HABIT_PRIORITY_OPTIONS,
+        habitCategoryOptions: HABIT_CATEGORY_OPTIONS,
 
         isProjectModalVisible,
-        setIsProjectModalVisible,
         editingProjectId,
         newProjectName,
         setNewProjectName,
@@ -361,10 +429,10 @@ export function useTodayData({ playSuccessChime }) {
         loadProjects,
         fetchQuote,
         openEditModal,
-        openOptions,
         toggleHabit,
         handleAddOrUpdateHabit,
         handleDeleteHabit,
+        addHabitFromTemplate,
 
         openCreateProjectModal,
         closeProjectModal,

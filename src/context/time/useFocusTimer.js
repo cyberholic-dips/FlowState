@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { NotificationService } from '../../utils/NotificationService';
+import { storage } from '../../utils/storage';
+
+const MIN_RECORDABLE_FOCUS_MS = 25 * 60 * 1000;
 
 export function useFocusTimer() {
     const [focusTime, setFocusTime] = useState(0);
@@ -103,7 +106,14 @@ export function useFocusTimer() {
         }
 
         await stopAmbientNoise();
-    }, [stopAmbientNoise]);
+
+        if (focusTime >= MIN_RECORDABLE_FOCUS_MS) {
+            await storage.addFocusSession({
+                title: focusTitle?.trim() || 'Focus Session',
+                duration: focusTime,
+            });
+        }
+    }, [focusTime, focusTitle, stopAmbientNoise]);
 
     const resetFocus = useCallback(async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

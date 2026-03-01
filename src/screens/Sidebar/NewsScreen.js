@@ -21,9 +21,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WebView } from "react-native-webview";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../context/ThemeContext";
+import { fetchWithTimeout } from "../../utils/network";
 
 const { width } = Dimensions.get("window");
 const NEWS_STORAGE_KEY = "general-news-data-cache";
+const REQUEST_TIMEOUT_MS = 12000;
 
 const decodeHtmlEntities = (text) => {
     if (!text) return "";
@@ -90,7 +92,8 @@ const SOURCES = [
         accent: "#3B82F6",
         fetch: async () => {
             try {
-                const response = await fetch("https://kathmandupost.com/rss");
+                const response = await fetchWithTimeout("https://kathmandupost.com/rss", {}, REQUEST_TIMEOUT_MS);
+                if (!response.ok) return null;
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -111,7 +114,7 @@ const SOURCES = [
                     });
                 }
                 return items;
-            } catch (e) { return []; }
+            } catch (e) { return null; }
         }
     },
     {
@@ -122,7 +125,8 @@ const SOURCES = [
         accent: "#10B981",
         fetch: async () => {
             try {
-                const response = await fetch("https://www.techpana.com/feed");
+                const response = await fetchWithTimeout("https://www.techpana.com/feed", {}, REQUEST_TIMEOUT_MS);
+                if (!response.ok) return null;
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -143,7 +147,7 @@ const SOURCES = [
                     });
                 }
                 return items;
-            } catch (e) { return []; }
+            } catch (e) { return null; }
         }
     },
     {
@@ -154,7 +158,8 @@ const SOURCES = [
         accent: "#bb1919",
         fetch: async () => {
             try {
-                const response = await fetch("http://feeds.bbci.co.uk/news/rss.xml");
+                const response = await fetchWithTimeout("http://feeds.bbci.co.uk/news/rss.xml", {}, REQUEST_TIMEOUT_MS);
+                if (!response.ok) return null;
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -177,7 +182,7 @@ const SOURCES = [
                     });
                 }
                 return items;
-            } catch (e) { return []; }
+            } catch (e) { return null; }
         }
     }
 ];
@@ -207,42 +212,63 @@ export default function NewsScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [readingItem, setReadingItem] = useState(null);
+    const [loadError, setLoadError] = useState("");
 
     const activeSource = SOURCES.find((s) => s.id === activeSourceId);
 
     const loadNews = async (refresh = false) => {
+        setLoadError("");
         if (!refresh && newsCache[activeSourceId]) {
             setNewsData(newsCache[activeSourceId]);
             setIsLoading(false);
             return;
         }
 
+        let storedParsed = null;
         if (!refresh) {
             try {
                 const stored = await AsyncStorage.getItem(NEWS_STORAGE_KEY);
                 if (stored) {
-                    const parsed = JSON.parse(stored);
-                    if (parsed[activeSourceId] && parsed[activeSourceId].length > 0) {
-                        setNewsData(parsed[activeSourceId]);
-                        newsCache[activeSourceId] = parsed[activeSourceId];
+                    storedParsed = JSON.parse(stored);
+                    if (storedParsed[activeSourceId] && storedParsed[activeSourceId].length > 0) {
+                        setNewsData(storedParsed[activeSourceId]);
+                        newsCache[activeSourceId] = storedParsed[activeSourceId];
                         setIsLoading(false);
                         return;
                     }
                 }
-            } catch (e) { }
+            } catch (e) { storedParsed = null; }
+        } else {
+            try {
+                const stored = await AsyncStorage.getItem(NEWS_STORAGE_KEY);
+                storedParsed = stored ? JSON.parse(stored) : null;
+            } catch (e) {
+                storedParsed = null;
+            }
         }
 
         if (!refresh) setIsLoading(true);
         const items = await activeSource.fetch();
-        setNewsData(items);
-        newsCache[activeSourceId] = items;
 
-        try {
-            const stored = await AsyncStorage.getItem(NEWS_STORAGE_KEY);
-            const parsed = stored ? JSON.parse(stored) : {};
-            parsed[activeSourceId] = items;
-            await AsyncStorage.setItem(NEWS_STORAGE_KEY, JSON.stringify(parsed));
-        } catch (e) { }
+        if (Array.isArray(items) && items.length > 0) {
+            setNewsData(items);
+            newsCache[activeSourceId] = items;
+            try {
+                const parsed = storedParsed || {};
+                parsed[activeSourceId] = items;
+                await AsyncStorage.setItem(NEWS_STORAGE_KEY, JSON.stringify(parsed));
+            } catch (e) { }
+        } else {
+            const fallback = newsCache[activeSourceId]
+                || (Array.isArray(storedParsed?.[activeSourceId]) ? storedParsed[activeSourceId] : []);
+
+            setNewsData(fallback);
+            if (fallback.length > 0) {
+                setLoadError("Live fetch failed. Showing saved stories.");
+            } else {
+                setLoadError("Unable to reach news server.");
+            }
+        }
 
         setIsLoading(false);
     };
@@ -331,6 +357,9 @@ export default function NewsScreen() {
                     transform: [{ translateY: headerTranslate }]
                 }
             ]}>
+                {!!loadError && (
+                    <Text style={[styles.inlineNotice, { color: colors.textSecondary }]}>{loadError}</Text>
+                )}
                 <View style={styles.headerRow}>
                     <View>
                         <Text style={[styles.headerTitle, { color: colors.text }]}>Global News</Text>
@@ -456,6 +485,11 @@ const createStyles = (colors) =>
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
+        },
+        inlineNotice: {
+            fontSize: 12,
+            fontWeight: '600',
+            marginBottom: 8,
         },
         headerTitle: { fontSize: 32, fontWeight: "900", letterSpacing: -0.5 },
         liveIndicatiorRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },

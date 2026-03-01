@@ -26,7 +26,7 @@ const { width } = Dimensions.get("window");
 const NEWS_STORAGE_KEY = "market-news-data-cache";
 
 const decodeHtmlEntities = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     return text
         .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
         .replace(/&nbsp;/g, " ")
@@ -38,29 +38,29 @@ const decodeHtmlEntities = (text) => {
 };
 
 const cleanText = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     const decoded = decodeHtmlEntities(text);
     return decoded.replace(/\s+/g, " ").trim();
 };
 
 const parseDateSafe = (dateString) => {
-    if (!dateString) return null;
+    if (!dateString) {return null;}
     let date = new Date(dateString);
-    if (!isNaN(date.getTime())) return date;
+    if (!isNaN(date.getTime())) {return date;}
 
     // Try manual fixes for common news site formats
     const cleaned = dateString.replace(/,/g, " ").replace(/\s+/g, " ").trim();
     date = new Date(cleaned);
-    if (!isNaN(date.getTime())) return date;
+    if (!isNaN(date.getTime())) {return date;}
 
     return null;
 };
 
 const formatRelativeTime = (dateString) => {
-    if (!dateString) return "";
+    if (!dateString) {return "";}
 
     const date = parseDateSafe(dateString);
-    if (!date) return dateString;
+    if (!date) {return dateString;}
 
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -76,11 +76,11 @@ const formatRelativeTime = (dateString) => {
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
 
-    if (diffSec < 60) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
-    if (diffDay === 1) return "Yesterday";
-    if (diffDay < 7) return `${diffDay}d ago`;
+    if (diffSec < 60) {return "Just now";}
+    if (diffMin < 60) {return `${diffMin}m ago`;}
+    if (diffHr < 24) {return `${diffHr}h ago`;}
+    if (diffDay === 1) {return "Yesterday";}
+    if (diffDay < 7) {return `${diffDay}d ago`;}
 
     return date.toLocaleDateString(undefined, {
         month: "short", day: "numeric", year: "numeric",
@@ -203,7 +203,7 @@ export default function MarketScreen() {
             } catch (e) { }
         }
 
-        if (!refresh) setIsLoading(true);
+        if (!refresh) {setIsLoading(true);}
         const items = await activeSource.fetch();
         setNewsData(items);
         newsCache[activeSourceId] = items;

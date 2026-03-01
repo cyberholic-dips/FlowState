@@ -19,7 +19,7 @@ const BACKUP_KEYS = [
 ];
 
 const isValidDateString = (value) => {
-    if (typeof value !== 'string') return false;
+    if (typeof value !== 'string') {return false;}
     const ms = new Date(value).getTime();
     return Number.isFinite(ms);
 };
@@ -35,11 +35,11 @@ const toIsoDate = (value, fallback = new Date().toISOString()) => {
 };
 
 const normalizeCompletedDates = (completedDates) => {
-    if (!Array.isArray(completedDates)) return [];
+    if (!Array.isArray(completedDates)) {return [];}
     const unique = new Set();
 
     completedDates.forEach((dateLike) => {
-        if (typeof dateLike !== 'string') return;
+        if (typeof dateLike !== 'string') {return;}
         const onlyDate = dateLike.split('T')[0];
         if (/^\d{4}-\d{2}-\d{2}$/.test(onlyDate)) {
             unique.add(onlyDate);
@@ -50,7 +50,7 @@ const normalizeCompletedDates = (completedDates) => {
 };
 
 const normalizeHabits = (habits) => {
-    if (!Array.isArray(habits)) return [];
+    if (!Array.isArray(habits)) {return [];}
     return habits.map((habit, index) => ({
         ...habit,
         id: `${habit?.id ?? `habit-${Date.now()}-${index}`}`,
@@ -63,7 +63,7 @@ const normalizeHabits = (habits) => {
 };
 
 const normalizeProjects = (projects) => {
-    if (!Array.isArray(projects)) return [];
+    if (!Array.isArray(projects)) {return [];}
     return projects.map((project, index) => ({
         ...project,
         id: `${project?.id ?? `project-${Date.now()}-${index}`}`,
@@ -74,7 +74,7 @@ const normalizeProjects = (projects) => {
 };
 
 const normalizeFocusSessions = (sessions) => {
-    if (!Array.isArray(sessions)) return [];
+    if (!Array.isArray(sessions)) {return [];}
     return sessions
         .map((session, index) => ({
             ...session,
@@ -130,13 +130,15 @@ const normalizeSettings = (settings) => {
 };
 
 const safeParse = (value, fallback) => {
-    if (value == null) return fallback;
+    if (value == null) {return fallback;}
     try {
         return JSON.parse(value);
     } catch {
         return fallback;
     }
 };
+
+let settingsWriteQueue = Promise.resolve();
 
 export const storage = {
     /**
@@ -267,7 +269,7 @@ export const storage = {
     async setHabitCompletion(habitId, isCompleted = true, dateStr = new Date().toISOString().split('T')[0]) {
         const habits = await this.getHabits();
         const updatedHabits = habits.map((habit) => {
-            if (habit.id !== habitId) return habit;
+            if (habit.id !== habitId) {return habit;}
 
             const completedDates = Array.isArray(habit.completedDates) ? habit.completedDates : [];
             const hasDate = completedDates.includes(dateStr);
@@ -336,11 +338,25 @@ export const storage = {
      */
     async saveSettings(settings) {
         try {
-            const jsonValue = JSON.stringify(settings);
+            const normalizedSettings = normalizeSettings(settings);
+            const jsonValue = JSON.stringify(normalizedSettings);
             await AsyncStorage.setItem(SETTINGS_KEY, jsonValue);
         } catch (e) {
             console.error('Error saving settings', e);
         }
+    },
+
+    /**
+     * Safely merge settings updates to avoid read-modify-write races.
+     */
+    async updateSettings(updater) {
+        settingsWriteQueue = settingsWriteQueue.catch(() => null).then(async () => {
+            const current = (await this.getSettings()) || {};
+            const next = typeof updater === 'function' ? updater(current) : updater;
+            await this.saveSettings(next || {});
+        });
+
+        return settingsWriteQueue;
     },
 
     /**
@@ -550,7 +566,9 @@ export const storage = {
             }
 
             await AsyncStorage.multiSet(writes);
-            await this.ensureDataMigrated();
+            // Always normalize imported data, even when schema version is already current.
+            await this.migrateData(0);
+            await AsyncStorage.setItem(STORAGE_SCHEMA_KEY, JSON.stringify(CURRENT_STORAGE_SCHEMA_VERSION));
             return true;
         } catch (e) {
             console.error('Error importing backup', e);

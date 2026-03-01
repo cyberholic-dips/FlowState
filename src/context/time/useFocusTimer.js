@@ -39,7 +39,7 @@ export function useFocusTimer() {
 
     const stopAmbientNoise = useCallback(async () => {
         const ambient = ambientSoundRef.current;
-        if (!ambient) return;
+        if (!ambient) {return;}
 
         try {
             await ambient.stopAsync();

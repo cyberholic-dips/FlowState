@@ -39,7 +39,7 @@ export function useReminders() {
         setIsAlarmTriggered(false);
         setActiveReminder(null);
 
-        if (!alarmSoundRef.current) return;
+        if (!alarmSoundRef.current) {return;}
 
         try {
             await alarmSoundRef.current.stopAsync();
@@ -63,7 +63,7 @@ export function useReminders() {
 
     useEffect(() => {
         const checkReminders = () => {
-            if (isAlarmTriggered) return;
+            if (isAlarmTriggered) {return;}
 
             const now = new Date();
             reminders.forEach((reminder) => {

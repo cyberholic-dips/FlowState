@@ -112,7 +112,7 @@ export default function ExploreScreen() {
             const userBirthDate = settings?.user?.birthDate;
 
             if (saved) {
-                if (saved.birthDate) setBirthDate(new Date(saved.birthDate));
+                if (saved.birthDate) {setBirthDate(new Date(saved.birthDate));}
                 if (typeof saved.lifeExpectancy === 'number') {
                     const normalized = clamp(saved.lifeExpectancy, 30, 120);
                     setLifeExpectancy(normalized);
@@ -121,7 +121,7 @@ export default function ExploreScreen() {
                     setLifeExpectancy(75);
                     setDraftLifeExpectancy(75);
                 }
-                if (Array.isArray(saved.events)) setEvents(saved.events);
+                if (Array.isArray(saved.events)) {setEvents(saved.events);}
             } else if (userBirthDate) {
                 setBirthDate(new Date(userBirthDate));
             }
@@ -133,7 +133,7 @@ export default function ExploreScreen() {
     }, []);
 
     useEffect(() => {
-        if (!isReady) return;
+        if (!isReady) {return;}
 
         const persist = async () => {
             const settings = (await storage.getSettings()) || {};
@@ -240,7 +240,7 @@ export default function ExploreScreen() {
     const ringLabels = useMemo(() => {
         const step = 5;
         const values = [];
-        for (let ageValue = 0; ageValue < lifeExpectancy; ageValue += step) values.push(ageValue);
+        for (let ageValue = 0; ageValue < lifeExpectancy; ageValue += step) {values.push(ageValue);}
         return values.map((ageValue) => ({
             key: `label-${ageValue}`,
             ageValue,
@@ -263,7 +263,7 @@ export default function ExploreScreen() {
 
     const scrollToEventCard = (eventId) => {
         const y = eventCardOffsetsRef.current[eventId];
-        if (typeof y !== 'number') return;
+        if (typeof y !== 'number') {return;}
         scrollRef.current?.scrollTo({ y: Math.max(0, y - 140), animated: true });
     };
 
@@ -275,7 +275,7 @@ export default function ExploreScreen() {
     };
 
     useEffect(() => {
-        if (!selectedEventId) return;
+        if (!selectedEventId) {return;}
         const existsInFiltered = filteredCardEvents.some((event) => event.id === selectedEventId);
         if (!existsInFiltered) {
             setSelectedEventId(null);
@@ -293,7 +293,7 @@ export default function ExploreScreen() {
     };
 
     const openEditModal = (event) => {
-        if (!event || event.id === 'origin') return;
+        if (!event || event.id === 'origin') {return;}
         setDraftTitle(event.title || '');
         setDraftDate(new Date(event.date));
         setDraftIconKey(event.iconKey || EVENT_OPTIONS[0].key);
@@ -304,7 +304,7 @@ export default function ExploreScreen() {
     };
 
     const deleteEvent = (eventId) => {
-        if (!eventId || eventId === 'origin') return;
+        if (!eventId || eventId === 'origin') {return;}
         Alert.alert(
             'Delete event?',
             'This event card will be removed from your timeline.',
@@ -324,7 +324,7 @@ export default function ExploreScreen() {
 
     const saveEvent = () => {
         const title = draftTitle.trim();
-        if (!title) return;
+        if (!title) {return;}
 
         const iconCfg = getIconConfig(draftIconKey);
         const eventPayload = {
@@ -569,7 +569,7 @@ export default function ExploreScreen() {
                                     mode="date"
                                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                                     onChange={(e, value) => {
-                                        if (value) setDraftDate(value);
+                                        if (value) {setDraftDate(value);}
                                         setIsDraftDatePickerVisible(false);
                                     }}
                                     maximumDate={new Date()}

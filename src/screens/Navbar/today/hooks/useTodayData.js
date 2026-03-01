@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
@@ -39,6 +39,7 @@ export function useTodayData({ playSuccessChime }) {
     });
 
     const [isHabitModalVisible, setIsHabitModalVisible] = useState(false);
+    const [isSavingHabit, setIsSavingHabit] = useState(false);
     const [newHabitName, setNewHabitName] = useState('');
     const [editingHabitId, setEditingHabitId] = useState(null);
     const [habitFrequency, setHabitFrequency] = useState(HABIT_FREQUENCY_OPTIONS[0]);
@@ -46,11 +47,19 @@ export function useTodayData({ playSuccessChime }) {
     const [habitCategory, setHabitCategory] = useState(HABIT_CATEGORY_OPTIONS[0]);
 
     const [isProjectModalVisible, setIsProjectModalVisible] = useState(false);
+    const [isSavingProject, setIsSavingProject] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
     const [newProjectDuration, setNewProjectDuration] = useState('');
     const [editingProjectId, setEditingProjectId] = useState(null);
 
     const [showConfetti, setShowConfetti] = useState(false);
+    const [undoSnackbar, setUndoSnackbar] = useState({
+        visible: false,
+        message: '',
+        kind: '',
+    });
+    const undoTimerRef = useRef(null);
+    const pendingDeletionRef = useRef(null);
 
     const currentDateStr = today.toISOString().split('T')[0];
 
@@ -177,28 +186,92 @@ export function useTodayData({ playSuccessChime }) {
     }, [today]);
 
     const closeHabitModal = useCallback(() => {
+        if (isSavingHabit) {return;}
         setIsHabitModalVisible(false);
         setNewHabitName('');
         setHabitFrequency(HABIT_FREQUENCY_OPTIONS[0]);
         setHabitPriority(HABIT_PRIORITY_OPTIONS[1]);
         setHabitCategory(HABIT_CATEGORY_OPTIONS[0]);
         setEditingHabitId(null);
-    }, []);
+    }, [isSavingHabit]);
 
     const openCreateHabitModal = useCallback(() => {
+        if (isSavingHabit) {return;}
         closeHabitModal();
         setIsHabitModalVisible(true);
-    }, [closeHabitModal]);
+    }, [closeHabitModal, isSavingHabit]);
 
     const openEditModal = useCallback((habit) => {
-        if (!habit) return;
+        if (!habit || isSavingHabit) {return;}
         setEditingHabitId(habit.id);
         setNewHabitName(habit.name);
         setHabitFrequency(habit.frequency || HABIT_FREQUENCY_OPTIONS[0]);
         setHabitPriority(habit.priority || HABIT_PRIORITY_OPTIONS[1]);
         setHabitCategory(habit.category || HABIT_CATEGORY_OPTIONS[0]);
         setIsHabitModalVisible(true);
+    }, [isSavingHabit]);
+
+    const clearUndoTimer = useCallback(() => {
+        if (undoTimerRef.current) {
+            clearTimeout(undoTimerRef.current);
+            undoTimerRef.current = null;
+        }
     }, []);
+
+    const queueUndo = useCallback((payload) => {
+        if (!payload?.previousItems) {return;}
+        clearUndoTimer();
+        pendingDeletionRef.current = payload;
+        setUndoSnackbar({
+            visible: true,
+            message: payload.message || 'Item deleted.',
+            kind: payload.kind || '',
+        });
+        undoTimerRef.current = setTimeout(() => {
+            pendingDeletionRef.current = null;
+            setUndoSnackbar({ visible: false, message: '', kind: '' });
+            undoTimerRef.current = null;
+        }, 5000);
+    }, [clearUndoTimer]);
+
+    const dismissUndoSnackbar = useCallback(() => {
+        clearUndoTimer();
+        pendingDeletionRef.current = null;
+        setUndoSnackbar({ visible: false, message: '', kind: '' });
+    }, [clearUndoTimer]);
+
+    const undoLastDeletion = useCallback(async () => {
+        const pending = pendingDeletionRef.current;
+        if (!pending) {return;}
+
+        clearUndoTimer();
+        pendingDeletionRef.current = null;
+        setUndoSnackbar({ visible: false, message: '', kind: '' });
+
+        try {
+            if (pending.kind === 'habit') {
+                await storage.saveHabits(pending.previousItems);
+                setHabits(pending.previousItems);
+                return;
+            }
+            if (pending.kind === 'project') {
+                await storage.saveProjects(pending.previousItems);
+                setProjects(pending.previousItems);
+            }
+        } catch (error) {
+            if (pending.kind === 'habit') {
+                setHabitsError('Could not restore deleted habit.');
+            } else {
+                setProjectsError('Could not restore deleted task.');
+            }
+        }
+    }, [clearUndoTimer]);
+
+    useEffect(() => {
+        return () => {
+            clearUndoTimer();
+        };
+    }, [clearUndoTimer]);
 
     const toggleHabit = useCallback(async (id) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -216,9 +289,10 @@ export function useTodayData({ playSuccessChime }) {
     }, [currentDateStr, playSuccessChime]);
 
     const handleAddOrUpdateHabit = useCallback(async () => {
-        if (!newHabitName.trim()) return;
+        if (!newHabitName.trim() || isSavingHabit) {return;}
 
         try {
+            setIsSavingHabit(true);
             setHabitsError(null);
             let updatedHabits;
             const habitPayload = {
@@ -239,11 +313,13 @@ export function useTodayData({ playSuccessChime }) {
             closeHabitModal();
         } catch (error) {
             setHabitsError('Could not save this habit.');
+        } finally {
+            setIsSavingHabit(false);
         }
-    }, [newHabitName, editingHabitId, habitFrequency, habitPriority, habitCategory, closeHabitModal]);
+    }, [newHabitName, editingHabitId, habitFrequency, habitPriority, habitCategory, closeHabitModal, isSavingHabit]);
 
     const handleDeleteHabit = useCallback(async (id) => {
-        if (!id) return;
+        if (!id) {return;}
 
         Alert.alert(
             'Delete Habit',
@@ -256,8 +332,15 @@ export function useTodayData({ playSuccessChime }) {
                     onPress: async () => {
                         try {
                             setHabitsError(null);
+                            const previousHabits = habits;
                             const updatedHabits = await storage.deleteHabit(id);
                             setHabits(updatedHabits);
+                            const deletedHabit = previousHabits.find((habit) => habit.id === id);
+                            queueUndo({
+                                kind: 'habit',
+                                previousItems: previousHabits,
+                                message: deletedHabit?.name ? `"${deletedHabit.name}" deleted` : 'Habit deleted.',
+                            });
                         } catch (error) {
                             setHabitsError('Could not delete this habit.');
                         }
@@ -265,11 +348,11 @@ export function useTodayData({ playSuccessChime }) {
                 },
             ]
         );
-    }, []);
+    }, [habits, queueUndo]);
 
     const addHabitFromTemplate = useCallback(async (name) => {
         const cleanName = (name || '').trim();
-        if (!cleanName) return;
+        if (!cleanName) {return;}
 
         try {
             setHabitsError(null);
@@ -286,27 +369,29 @@ export function useTodayData({ playSuccessChime }) {
     }, []);
 
     const closeProjectModal = useCallback(() => {
+        if (isSavingProject) {return;}
         setIsProjectModalVisible(false);
         setNewProjectName('');
         setNewProjectDuration('');
         setEditingProjectId(null);
-    }, []);
+    }, [isSavingProject]);
 
     const openCreateProjectModal = useCallback(() => {
+        if (isSavingProject) {return;}
         closeProjectModal();
         setIsProjectModalVisible(true);
-    }, [closeProjectModal]);
+    }, [closeProjectModal, isSavingProject]);
 
     const openEditProjectModal = useCallback((project) => {
-        if (!project) return;
+        if (!project || isSavingProject) {return;}
         setEditingProjectId(project.id);
         setNewProjectName(project.name || '');
         setNewProjectDuration(String(project.durationDays || ''));
         setIsProjectModalVisible(true);
-    }, []);
+    }, [isSavingProject]);
 
     const handleAddOrUpdateProject = useCallback(async () => {
-        if (!newProjectName.trim() || !newProjectDuration.trim()) return;
+        if (!newProjectName.trim() || !newProjectDuration.trim() || isSavingProject) {return;}
         const parsedDuration = parseInt(newProjectDuration, 10);
         if (Number.isNaN(parsedDuration) || parsedDuration <= 0) {
             setProjectsError('Duration must be a valid number of days.');
@@ -314,6 +399,7 @@ export function useTodayData({ playSuccessChime }) {
         }
 
         try {
+            setIsSavingProject(true);
             setProjectsError(null);
             const updatedProjects = editingProjectId
                 ? await storage.updateProject(editingProjectId, {
@@ -329,8 +415,10 @@ export function useTodayData({ playSuccessChime }) {
             closeProjectModal();
         } catch (error) {
             setProjectsError('Could not save this task.');
+        } finally {
+            setIsSavingProject(false);
         }
-    }, [newProjectName, newProjectDuration, editingProjectId, closeProjectModal]);
+    }, [newProjectName, newProjectDuration, editingProjectId, closeProjectModal, isSavingProject]);
 
     const handleDeleteProject = useCallback((id) => {
         Alert.alert(
@@ -344,8 +432,15 @@ export function useTodayData({ playSuccessChime }) {
                     onPress: async () => {
                         try {
                             setProjectsError(null);
+                            const previousProjects = projects;
                             const updatedProjects = await storage.deleteProject(id);
                             setProjects(updatedProjects);
+                            const deletedProject = previousProjects.find((project) => project.id === id);
+                            queueUndo({
+                                kind: 'project',
+                                previousItems: previousProjects,
+                                message: deletedProject?.name ? `"${deletedProject.name}" deleted` : 'Task deleted.',
+                            });
                         } catch (error) {
                             setProjectsError('Could not delete this task.');
                         }
@@ -353,10 +448,10 @@ export function useTodayData({ playSuccessChime }) {
                 },
             ]
         );
-    }, []);
+    }, [projects, queueUndo]);
 
     const handleCompleteProject = useCallback(async (id) => {
-        if (!id) return;
+        if (!id) {return;}
         try {
             setProjectsError(null);
             const updatedProjects = await storage.deleteProject(id);
@@ -378,8 +473,8 @@ export function useTodayData({ playSuccessChime }) {
     }, []);
 
     const getDaysLeftColor = useCallback((days) => {
-        if (days > 3) return '#10B981';
-        if (days > 1) return '#F59E0B';
+        if (days > 3) {return '#10B981';}
+        if (days > 1) {return '#F59E0B';}
         return '#EF4444';
     }, []);
 
@@ -400,6 +495,7 @@ export function useTodayData({ playSuccessChime }) {
         isCompleted,
 
         isHabitModalVisible,
+        isSavingHabit,
         newHabitName,
         setNewHabitName,
         editingHabitId,
@@ -414,6 +510,7 @@ export function useTodayData({ playSuccessChime }) {
         habitCategoryOptions: HABIT_CATEGORY_OPTIONS,
 
         isProjectModalVisible,
+        isSavingProject,
         editingProjectId,
         newProjectName,
         setNewProjectName,
@@ -422,6 +519,9 @@ export function useTodayData({ playSuccessChime }) {
 
         showConfetti,
         setShowConfetti,
+        undoSnackbar,
+        undoLastDeletion,
+        dismissUndoSnackbar,
 
         openCreateHabitModal,
         closeHabitModal,

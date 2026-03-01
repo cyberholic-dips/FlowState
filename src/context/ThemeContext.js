@@ -63,12 +63,10 @@ export const ThemeProvider = ({ children }) => {
         const newIsDark = !isDark;
         setIsDark(newIsDark);
 
-        // Persist
-        const settings = await storage.getSettings() || {};
-        await storage.saveSettings({
+        await storage.updateSettings((settings = {}) => ({
             ...settings,
-            theme: newIsDark ? 'dark' : 'light'
-        });
+            theme: newIsDark ? 'dark' : 'light',
+        }));
     };
 
     return (

@@ -15,7 +15,7 @@ export default function SidebarDrawer({
     closeSidebar,
     navigateToSection,
 }) {
-    if (!isSidebarVisible) return null;
+    if (!isSidebarVisible) {return null;}
     const triggerTapFeedback = () => {
         Haptics.selectionAsync().catch(() => null);
     };
@@ -24,6 +24,7 @@ export default function SidebarDrawer({
         { key: 'Market', icon: 'bar-chart-outline', color: theme.success, label: 'Share Market' },
         { key: 'Trends', icon: 'trending-up-outline', color: theme.warning, label: 'Trends' },
         { key: 'Crypto', icon: 'logo-bitcoin', color: '#F7931A', label: 'Crypto News' },
+        { key: 'DecisionWheel', icon: 'shuffle-outline', color: theme.secondary, label: 'Decision Wheel' },
         { key: 'Focus', icon: 'timer-outline', color: theme.primary, label: 'Focus' },
         { key: 'Tech', icon: 'hardware-chip-outline', color: theme.text, label: 'Tech Stuff' },
     ];

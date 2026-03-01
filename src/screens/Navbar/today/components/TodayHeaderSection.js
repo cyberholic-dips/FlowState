@@ -16,8 +16,8 @@ const formatDate = (date) => {
 };
 const getTimeGreeting = (date) => {
     const hour = date.getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
+    if (hour < 12) {return 'Good morning';}
+    if (hour < 18) {return 'Good afternoon';}
     return 'Good evening';
 };
 

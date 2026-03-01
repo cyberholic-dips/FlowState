@@ -16,14 +16,15 @@ import {
     Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import { storage } from '../../utils/storage';
 
 const getAgeFromBirthDate = (birthDateValue) => {
-    if (!birthDateValue) return null;
+    if (!birthDateValue) {return null;}
     const birthDate = new Date(birthDateValue);
-    if (Number.isNaN(birthDate.getTime())) return null;
+    if (Number.isNaN(birthDate.getTime())) {return null;}
 
     const now = new Date();
     let age = now.getFullYear() - birthDate.getFullYear();
@@ -33,6 +34,33 @@ const getAgeFromBirthDate = (birthDateValue) => {
     }
     return Math.max(0, age);
 };
+
+const ABOUT_SECTIONS = [
+    {
+        key: 'mission',
+        title: 'What is Flow State?',
+        body: 'Flow State is designed to help users build consistency in daily routines and improve life balance.',
+    },
+    {
+        key: 'approach',
+        title: 'How it works',
+        body: 'The app gives you a simple daily system for tracking habits, reviewing progress, and staying focused through practical actions.',
+    },
+    {
+        key: 'features',
+        title: 'Core features',
+        bullets: [
+            'Daily habit tracking with quick completion',
+            'Life timeline and milestone exploration',
+            'Learning and progress insights across sessions',
+        ],
+    },
+    {
+        key: 'vision',
+        title: 'Product vision',
+        body: 'Our mission is to make habit building simple, realistic, and sustainable, and continuously improve based on user feedback.',
+    },
+];
 
 export default function SettingsScreen() {
     const { theme, isDark, toggleTheme } = useTheme();
@@ -48,9 +76,15 @@ export default function SettingsScreen() {
     const [exportPayload, setExportPayload] = useState('');
     const [importPayload, setImportPayload] = useState('');
     const [exportSelection, setExportSelection] = useState({ start: 0, end: 0 });
+    const [expandedAboutSection, setExpandedAboutSection] = useState(ABOUT_SECTIONS[0].key);
+    const [profileSaveState, setProfileSaveState] = useState('idle');
+    const [themeSaveState, setThemeSaveState] = useState('idle');
     const exportInputRef = useRef(null);
+    const profileSaveTimerRef = useRef(null);
+    const themeSaveTimerRef = useRef(null);
 
     const isWide = width >= 920;
+    const appVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.0.0';
 
     const initials = useMemo(() => {
         const name = userData.name?.trim() || 'User';
@@ -71,16 +105,67 @@ export default function SettingsScreen() {
         setNameInput(userData.name || '');
     }, [userData.name]);
 
-    const handleSaveName = () => {
+    useEffect(() => {
+        return () => {
+            if (profileSaveTimerRef.current) {
+                clearTimeout(profileSaveTimerRef.current);
+            }
+            if (themeSaveTimerRef.current) {
+                clearTimeout(themeSaveTimerRef.current);
+            }
+        };
+    }, []);
+
+    const queueSavedState = (setter, timerRef) => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+        }
+        setter('saved');
+        timerRef.current = setTimeout(() => {
+            setter('idle');
+            timerRef.current = null;
+        }, 1500);
+    };
+
+    const handleSaveName = async () => {
+        if (profileSaveState === 'saving') {return;}
         const cleaned = nameInput.trim();
         if (!cleaned) {
             setNameInput(userData.name);
             setIsEditing(false);
             return;
         }
-        updateName(cleaned);
-        setNameInput(cleaned);
-        setIsEditing(false);
+        try {
+            setProfileSaveState('saving');
+            await updateName(cleaned);
+            setNameInput(cleaned);
+            setIsEditing(false);
+            queueSavedState(setProfileSaveState, profileSaveTimerRef);
+        } catch (error) {
+            setProfileSaveState('error');
+        }
+    };
+
+    const handleAvatarSelect = async (avatarId) => {
+        if (profileSaveState === 'saving') {return;}
+        try {
+            setProfileSaveState('saving');
+            await updateAvatar(avatarId);
+            queueSavedState(setProfileSaveState, profileSaveTimerRef);
+        } catch (error) {
+            setProfileSaveState('error');
+        }
+    };
+
+    const handleToggleTheme = async () => {
+        if (themeSaveState === 'saving') {return;}
+        try {
+            setThemeSaveState('saving');
+            await toggleTheme();
+            queueSavedState(setThemeSaveState, themeSaveTimerRef);
+        } catch (error) {
+            setThemeSaveState('error');
+        }
     };
 
     const handleOpenExport = async () => {
@@ -118,7 +203,7 @@ export default function SettingsScreen() {
     };
 
     const handlePrepareCopy = () => {
-        if (!exportPayload) return;
+        if (!exportPayload) {return;}
         const end = exportPayload.length;
         setExportSelection({ start: 0, end });
         requestAnimationFrame(() => {
@@ -179,15 +264,24 @@ export default function SettingsScreen() {
                                 onBlur={handleSaveName}
                                 onSubmitEditing={handleSaveName}
                                 returnKeyType="done"
+                                editable={profileSaveState !== 'saving'}
                             />
-                            <TouchableOpacity onPress={handleSaveName} style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}>
+                            <TouchableOpacity
+                                onPress={handleSaveName}
+                                style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}
+                                disabled={profileSaveState === 'saving'}
+                            >
                                 <Ionicons name="checkmark" size={18} color={theme.primary} />
                             </TouchableOpacity>
                         </View>
                     ) : (
                         <View style={[styles.infoRowBox, { backgroundColor: theme.input, borderColor: theme.border }]}>
                             <Text style={[styles.infoValue, { color: theme.text }]}>{userData.name || 'User'}</Text>
-                            <TouchableOpacity onPress={() => setIsEditing(true)} style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}>
+                            <TouchableOpacity
+                                onPress={() => setIsEditing(true)}
+                                style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}
+                                disabled={profileSaveState === 'saving'}
+                            >
                                 <Ionicons name="pencil" size={16} color={theme.primary} />
                             </TouchableOpacity>
                         </View>
@@ -197,6 +291,7 @@ export default function SettingsScreen() {
                         style={[styles.avatarToggle, { borderColor: theme.border, backgroundColor: theme.input }]}
                         activeOpacity={0.85}
                         onPress={() => setIsAvatarPickerOpen((prev) => !prev)}
+                        disabled={profileSaveState === 'saving'}
                     >
                         <Text style={[styles.avatarToggleText, { color: theme.text }]}>Choose Avatar</Text>
                         <Ionicons name={isAvatarPickerOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.subText} />
@@ -209,8 +304,9 @@ export default function SettingsScreen() {
                                 return (
                                     <TouchableOpacity
                                         key={avatar.id}
-                                        onPress={() => updateAvatar(avatar.id)}
+                                        onPress={() => handleAvatarSelect(avatar.id)}
                                         activeOpacity={0.8}
+                                        disabled={profileSaveState === 'saving'}
                                         style={[
                                             styles.avatarOption,
                                             {
@@ -224,6 +320,23 @@ export default function SettingsScreen() {
                                 );
                             })}
                         </View>
+                    ) : null}
+
+                    {profileSaveState !== 'idle' ? (
+                        <Text
+                            style={[
+                                styles.inlineSaveText,
+                                {
+                                    color: profileSaveState === 'error'
+                                        ? theme.danger
+                                        : (profileSaveState === 'saved' ? theme.success : theme.subText),
+                                },
+                            ]}
+                        >
+                            {profileSaveState === 'saving'
+                                ? 'Saving profile...'
+                                : (profileSaveState === 'saved' ? 'Profile saved' : 'Could not save profile')}
+                        </Text>
                     ) : null}
                 </View>
 
@@ -243,10 +356,27 @@ export default function SettingsScreen() {
                             trackColor={{ false: '#94A3B8', true: theme.primary }}
                             thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : '#F8FAFC'}
                             ios_backgroundColor="#64748B"
-                            onValueChange={toggleTheme}
+                            onValueChange={handleToggleTheme}
                             value={isDark}
+                            disabled={themeSaveState === 'saving'}
                         />
                     </View>
+                    {themeSaveState !== 'idle' ? (
+                        <Text
+                            style={[
+                                styles.inlineSaveText,
+                                {
+                                    color: themeSaveState === 'error'
+                                        ? theme.danger
+                                        : (themeSaveState === 'saved' ? theme.success : theme.subText),
+                                },
+                            ]}
+                        >
+                            {themeSaveState === 'saving'
+                                ? 'Saving theme...'
+                                : (themeSaveState === 'saved' ? 'Theme saved' : 'Could not save theme')}
+                        </Text>
+                    ) : null}
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
@@ -278,29 +408,6 @@ export default function SettingsScreen() {
 
                 <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
                     <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
-
-                    <Text style={[styles.aboutHeading, { color: theme.text }]}>About Flow State</Text>
-                    <Text style={[styles.aboutText, { color: theme.subText }]}>
-                        Flow State is designed to help users build consistency in daily routines and improve life balance.
-                    </Text>
-                    <Text style={[styles.aboutText, { color: theme.subText }]}>
-                        Our app provides a clean way to track habits, review progress, and stay focused through simple daily actions.
-                    </Text>
-
-                    <Text style={[styles.aboutSubheading, { color: theme.text }]}>Key features include:</Text>
-                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Daily habit tracking with quick completion</Text>
-                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Life timeline and milestone exploration</Text>
-                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Learning and progress insights across sessions</Text>
-
-                    <Text style={[styles.aboutText, { color: theme.subText, marginTop: 10 }]}>
-                        Our mission is to make habit building simple, realistic, and sustainable for everyone.
-                    </Text>
-                    <Text style={[styles.aboutText, { color: theme.subText }]}>
-                        We continuously improve the app based on user feedback.
-                    </Text>
-
-                    <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
-
                     <TouchableOpacity style={styles.infoList} onPress={handleOpenDeveloperProfile} activeOpacity={0.75}>
                         <Text style={[styles.infoLabel, { color: theme.subText }]}>Developer</Text>
                         <View style={styles.infoLinkWrap}>
@@ -313,7 +420,57 @@ export default function SettingsScreen() {
 
                     <View style={styles.infoList}>
                         <Text style={[styles.infoLabel, { color: theme.subText }]}>Version</Text>
-                        <Text style={[styles.infoValue, { color: theme.text }]}>1.0.0</Text>
+                        <Text style={[styles.infoValue, { color: theme.text }]}>{appVersion}</Text>
+                    </View>
+
+                    <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+
+                    <View style={styles.aboutAccordionWrap}>
+                        {ABOUT_SECTIONS.map((section) => {
+                            const isExpanded = expandedAboutSection === section.key;
+                            return (
+                                <View
+                                    key={section.key}
+                                    style={[
+                                        styles.aboutAccordionItem,
+                                        {
+                                            borderColor: theme.border,
+                                            backgroundColor: isExpanded ? theme.input : 'transparent',
+                                        },
+                                    ]}
+                                >
+                                    <TouchableOpacity
+                                        style={styles.aboutAccordionHeader}
+                                        onPress={() => {
+                                            setExpandedAboutSection((prev) => (prev === section.key ? '' : section.key));
+                                        }}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={[styles.aboutAccordionTitle, { color: theme.text }]}>{section.title}</Text>
+                                        <Ionicons
+                                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                                            size={16}
+                                            color={theme.subText}
+                                        />
+                                    </TouchableOpacity>
+
+                                    {isExpanded ? (
+                                        <View style={styles.aboutAccordionBody}>
+                                            {section.body ? (
+                                                <Text style={[styles.aboutText, { color: theme.subText }]}>{section.body}</Text>
+                                            ) : null}
+                                            {section.bullets
+                                                ? section.bullets.map((bullet) => (
+                                                    <Text key={bullet} style={[styles.aboutBullet, { color: theme.subText }]}>
+                                                        {'\u2022'} {bullet}
+                                                    </Text>
+                                                ))
+                                                : null}
+                                        </View>
+                                    ) : null}
+                                </View>
+                            );
+                        })}
                     </View>
                 </View>
             </ScrollView>
@@ -570,6 +727,11 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginTop: 1,
     },
+    inlineSaveText: {
+        marginTop: 10,
+        fontSize: 12,
+        fontWeight: '700',
+    },
     backupButtonsRow: {
         flexDirection: 'row',
         gap: 10,
@@ -610,22 +772,34 @@ const styles = StyleSheet.create({
         height: 1,
         marginVertical: 12,
     },
-    aboutHeading: {
-        fontSize: 18,
-        fontWeight: '800',
-        marginBottom: 8,
+    aboutAccordionWrap: {
+        gap: 8,
     },
-    aboutSubheading: {
-        marginTop: 10,
-        marginBottom: 6,
+    aboutAccordionItem: {
+        borderWidth: 1,
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    aboutAccordionHeader: {
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    aboutAccordionTitle: {
         fontSize: 14,
         fontWeight: '800',
+    },
+    aboutAccordionBody: {
+        paddingHorizontal: 12,
+        paddingBottom: 11,
     },
     aboutText: {
         fontSize: 13,
         lineHeight: 19,
         fontWeight: '500',
-        marginBottom: 4,
+        marginBottom: 2,
     },
     aboutBullet: {
         fontSize: 13,

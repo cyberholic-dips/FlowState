@@ -18,7 +18,7 @@ export default function LearningScreen() {
     const [error, setError] = useState(null);
 
     const fetchWordData = async (retryCount = 0) => {
-        if (retryCount === 0) setLoading(true);
+        if (retryCount === 0) {setLoading(true);}
         setError(null);
 
         try {
@@ -42,7 +42,7 @@ export default function LearningScreen() {
         } catch (err) {
             setError('Failed to fetch learning data. Check your connection.');
         } finally {
-            if (retryCount === 0 || wordData || error) setLoading(false);
+            if (retryCount === 0 || wordData || error) {setLoading(false);}
         }
     };
 
@@ -58,7 +58,7 @@ export default function LearningScreen() {
             if (newsMatch) {
                 const title = newsMatch[1].match(/<title>([\s\S]*?)<\/title>/);
                 const link = newsMatch[1].match(/<link>([\s\S]*?)<\/link>/);
-                if (title && link) news.general = { title: title[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim(), link: link[1] };
+                if (title && link) {news.general = { title: title[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim(), link: link[1] };}
             }
 
             // 2. Market News (Sharesansar HTML)
@@ -68,7 +68,7 @@ export default function LearningScreen() {
             if (marketPart.length > 1) {
                 const title = marketPart[1].match(/<h4 class="featured-news-title">([^<]+)<\/h4>/);
                 const link = marketPart[1].match(/href="([^"]+)"/);
-                if (title && link) news.market = { title: title[1].trim(), link: link[1] };
+                if (title && link) {news.market = { title: title[1].trim(), link: link[1] };}
             }
 
             // 3. Crypto News (CoinDesk RSS)
@@ -78,7 +78,7 @@ export default function LearningScreen() {
             if (cryptoMatch) {
                 const title = cryptoMatch[1].match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || cryptoMatch[1].match(/<title>([\s\S]*?)<\/title>/);
                 const link = cryptoMatch[1].match(/<link>([\s\S]*?)<\/link>/);
-                if (title && link) news.crypto = { title: title[1].trim(), link: link[1] };
+                if (title && link) {news.crypto = { title: title[1].trim(), link: link[1] };}
             }
 
             setNewsItems(news);
@@ -104,7 +104,7 @@ export default function LearningScreen() {
 
     // Helper to find a definition and example
     const getBestDefinition = () => {
-        if (!wordData) return null;
+        if (!wordData) {return null;}
         for (const meaning of wordData.meanings) {
             for (const def of meaning.definitions) {
                 if (def.definition) {

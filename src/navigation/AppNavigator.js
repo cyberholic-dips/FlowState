@@ -21,6 +21,7 @@ import TrendsScreen from '../screens/Sidebar/TrendsScreen';
 import CryptoScreen from '../screens/Sidebar/CryptoScreen';
 
 import TechScreen from '../screens/Sidebar/TechScreen';
+import DecisionWheelScreen from '../screens/Sidebar/DecisionWheelScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 
 const Tab = createBottomTabNavigator();
@@ -174,6 +175,15 @@ export default function AppNavigator() {
                         headerShown: true,
                         header: (props) => <CustomHeader {...props} />,
                         title: 'Tech Stuff'
+                    }}
+                />
+                <Stack.Screen
+                    name="DecisionWheel"
+                    component={DecisionWheelScreen}
+                    options={{
+                        headerShown: true,
+                        header: (props) => <CustomHeader {...props} />,
+                        title: 'Decision Wheel'
                     }}
                 />
             </Stack.Navigator>

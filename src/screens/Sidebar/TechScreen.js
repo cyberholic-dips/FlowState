@@ -19,30 +19,30 @@ const decodeHtmlEntities = (text) => {
 };
 
 const cleanText = (text) => {
-    if (!text) return '';
+    if (!text) {return '';}
     const decoded = decodeHtmlEntities(text);
     return decoded.replace(/\s+/g, ' ').trim();
 };
 
 const formatRelativeTime = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) {return '';}
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    if (isNaN(date.getTime())) {return dateString;}
 
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    if (diffMs < 0) return date.toLocaleDateString();
+    if (diffMs < 0) {return date.toLocaleDateString();}
 
     const diffSec = Math.floor(diffMs / 1000);
     const diffMin = Math.floor(diffSec / 60);
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
 
-    if (diffSec < 60) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
-    if (diffDay === 1) return 'Yesterday';
-    if (diffDay < 7) return `${diffDay}d ago`;
+    if (diffSec < 60) {return 'Just now';}
+    if (diffMin < 60) {return `${diffMin}m ago`;}
+    if (diffHr < 24) {return `${diffHr}h ago`;}
+    if (diffDay === 1) {return 'Yesterday';}
+    if (diffDay < 7) {return `${diffDay}d ago`;}
 
     return date.toLocaleDateString();
 };
@@ -56,7 +56,7 @@ export default function TechScreen() {
     const [selectedArticle, setSelectedArticle] = useState(null);
 
     const fetchTechNews = async (isRefresh = false) => {
-        if (!isRefresh) setLoading(true);
+        if (!isRefresh) {setLoading(true);}
         try {
             const response = await fetch(TECHCRUNCH_FEED_URL);
             const xmlText = await response.text();

@@ -29,7 +29,7 @@ const CRYPTO_CACHE_KEY = "crypto-hub-cache";
 const REQUEST_TIMEOUT_MS = 12000;
 
 const decodeHtmlEntities = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     return text
         .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
         .replace(/&nbsp;/g, " ")
@@ -41,15 +41,15 @@ const decodeHtmlEntities = (text) => {
 };
 
 const cleanText = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     const decoded = decodeHtmlEntities(text);
     return decoded.replace(/\s+/g, " ").trim();
 };
 
 const formatRelativeTime = (dateString) => {
-    if (!dateString) return "";
+    if (!dateString) {return "";}
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    if (isNaN(date.getTime())) {return dateString;}
 
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -57,9 +57,9 @@ const formatRelativeTime = (dateString) => {
     const diffMin = Math.floor(diffSec / 60);
     const diffHr = Math.floor(diffMin / 60);
 
-    if (diffSec < 60) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffSec < 60) {return "Just now";}
+    if (diffMin < 60) {return `${diffMin}m ago`;}
+    if (diffHr < 24) {return `${diffHr}h ago`;}
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
@@ -70,7 +70,7 @@ const fetchPrices = async () => {
             {},
             REQUEST_TIMEOUT_MS
         );
-        if (!response.ok) return null;
+        if (!response.ok) {return null;}
         const data = await response.json();
         return Array.isArray(data) ? data : null;
     } catch (e) {
@@ -81,7 +81,7 @@ const fetchPrices = async () => {
 const fetchNews = async () => {
     try {
         const response = await fetchWithTimeout("https://www.coindesk.com/arc/outboundfeeds/rss", {}, REQUEST_TIMEOUT_MS);
-        if (!response.ok) return null;
+        if (!response.ok) {return null;}
         const xml = await response.text();
         const items = [];
         const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -135,7 +135,7 @@ export default function CryptoScreen() {
     const [dataNotice, setDataNotice] = useState("");
 
     const loadData = async (isRefresh = false) => {
-        if (!isRefresh) setLoading(true);
+        if (!isRefresh) {setLoading(true);}
         setDataNotice("");
         let cachedData = null;
 

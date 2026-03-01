@@ -39,6 +39,7 @@ export default function TodayScreen() {
         isCompleted,
 
         isHabitModalVisible,
+        isSavingHabit,
         newHabitName,
         setNewHabitName,
         editingHabitId,
@@ -53,6 +54,7 @@ export default function TodayScreen() {
         habitCategoryOptions,
 
         isProjectModalVisible,
+        isSavingProject,
         editingProjectId,
         newProjectName,
         setNewProjectName,
@@ -61,6 +63,9 @@ export default function TodayScreen() {
 
         showConfetti,
         setShowConfetti,
+        undoSnackbar,
+        undoLastDeletion,
+        dismissUndoSnackbar,
 
         openCreateHabitModal,
         closeHabitModal,
@@ -176,6 +181,7 @@ export default function TodayScreen() {
                 styles={styles}
                 theme={theme}
                 isHabitModalVisible={isHabitModalVisible}
+                isSavingHabit={isSavingHabit}
                 closeHabitModal={closeHabitModal}
                 editingHabitId={editingHabitId}
                 newHabitName={newHabitName}
@@ -191,6 +197,7 @@ export default function TodayScreen() {
                 habitCategoryOptions={habitCategoryOptions}
                 handleAddOrUpdateHabit={handleAddOrUpdateHabit}
                 isProjectModalVisible={isProjectModalVisible}
+                isSavingProject={isSavingProject}
                 closeProjectModal={closeProjectModal}
                 editingProjectId={editingProjectId}
                 newProjectName={newProjectName}
@@ -199,6 +206,36 @@ export default function TodayScreen() {
                 setNewProjectDuration={setNewProjectDuration}
                 handleAddOrUpdateProject={handleAddOrUpdateProject}
             />
+
+            {undoSnackbar.visible ? (
+                <View
+                    style={[
+                        styles.undoSnackbar,
+                        {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                            bottom: insets.bottom + 20,
+                            shadowColor: theme.shadow,
+                        },
+                    ]}
+                >
+                    <View style={styles.undoSnackbarTextWrap}>
+                        <Text style={[styles.undoSnackbarText, { color: theme.text }]} numberOfLines={1}>
+                            {undoSnackbar.message}
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={undoLastDeletion}
+                        style={[styles.undoActionButton, { backgroundColor: theme.primary + '22', borderColor: theme.primary + '55' }]}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.undoActionText, { color: theme.primary }]}>Undo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={dismissUndoSnackbar} style={styles.undoCloseButton} activeOpacity={0.75}>
+                        <Ionicons name="close" size={16} color={theme.subText} />
+                    </TouchableOpacity>
+                </View>
+            ) : null}
 
             <SidebarDrawer
                 styles={styles}
@@ -346,6 +383,50 @@ const styles = StyleSheet.create({
         shadowRadius: 14,
         elevation: 10,
         zIndex: 50,
+    },
+    undoSnackbar: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        borderWidth: 1,
+        borderRadius: 14,
+        minHeight: 52,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 18,
+        elevation: 8,
+        zIndex: 70,
+    },
+    undoSnackbarTextWrap: {
+        flex: 1,
+        marginRight: 8,
+    },
+    undoSnackbarText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    undoActionButton: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        marginRight: 8,
+    },
+    undoActionText: {
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    undoCloseButton: {
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     greetingContainer: {
         paddingHorizontal: 24,
@@ -911,6 +992,13 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: '700',
+    },
+    inlineBusyRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    inlineBusyLabel: {
+        marginLeft: 8,
     },
     sidebarOverlay: {
         ...StyleSheet.absoluteFillObject,

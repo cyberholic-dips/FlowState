@@ -28,7 +28,7 @@ const NEWS_STORAGE_KEY = "general-news-data-cache";
 const REQUEST_TIMEOUT_MS = 12000;
 
 const decodeHtmlEntities = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     return text
         .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
         .replace(/&nbsp;/g, " ")
@@ -40,23 +40,23 @@ const decodeHtmlEntities = (text) => {
 };
 
 const cleanText = (text) => {
-    if (!text) return "";
+    if (!text) {return "";}
     const decoded = decodeHtmlEntities(text);
     return decoded.replace(/\s+/g, " ").trim();
 };
 
 const parseDateSafe = (dateString) => {
-    if (!dateString) return null;
-    let date = new Date(dateString);
-    if (!isNaN(date.getTime())) return date;
+    if (!dateString) {return null;}
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {return date;}
     return null;
 };
 
 const formatRelativeTime = (dateString) => {
-    if (!dateString) return "";
+    if (!dateString) {return "";}
 
     const date = parseDateSafe(dateString);
-    if (!date) return dateString;
+    if (!date) {return dateString;}
 
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -72,11 +72,11 @@ const formatRelativeTime = (dateString) => {
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
 
-    if (diffSec < 60) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHr < 24) return `${diffHr}h ago`;
-    if (diffDay === 1) return "Yesterday";
-    if (diffDay < 7) return `${diffDay}d ago`;
+    if (diffSec < 60) {return "Just now";}
+    if (diffMin < 60) {return `${diffMin}m ago`;}
+    if (diffHr < 24) {return `${diffHr}h ago`;}
+    if (diffDay === 1) {return "Yesterday";}
+    if (diffDay < 7) {return `${diffDay}d ago`;}
 
     return date.toLocaleDateString(undefined, {
         month: "short", day: "numeric", year: "numeric",
@@ -93,7 +93,7 @@ const SOURCES = [
         fetch: async () => {
             try {
                 const response = await fetchWithTimeout("https://kathmandupost.com/rss", {}, REQUEST_TIMEOUT_MS);
-                if (!response.ok) return null;
+                if (!response.ok) {return null;}
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -126,7 +126,7 @@ const SOURCES = [
         fetch: async () => {
             try {
                 const response = await fetchWithTimeout("https://www.techpana.com/feed", {}, REQUEST_TIMEOUT_MS);
-                if (!response.ok) return null;
+                if (!response.ok) {return null;}
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -159,7 +159,7 @@ const SOURCES = [
         fetch: async () => {
             try {
                 const response = await fetchWithTimeout("http://feeds.bbci.co.uk/news/rss.xml", {}, REQUEST_TIMEOUT_MS);
-                if (!response.ok) return null;
+                if (!response.ok) {return null;}
                 const xml = await response.text();
                 const items = [];
                 const itemMatches = xml.match(/<item>([\s\S]*?)<\/item>/g);
@@ -247,7 +247,7 @@ export default function NewsScreen() {
             }
         }
 
-        if (!refresh) setIsLoading(true);
+        if (!refresh) {setIsLoading(true);}
         const items = await activeSource.fetch();
 
         if (Array.isArray(items) && items.length > 0) {

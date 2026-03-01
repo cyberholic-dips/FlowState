@@ -83,7 +83,7 @@ export const NotificationService = {
      * @param {string} timeString "HH:mm"
      */
     async scheduleHabitReminder(habitId, habitName, timeString) {
-        if (!notificationsAvailable || !timeString) return null;
+        if (!notificationsAvailable || !timeString) {return null;}
 
         try {
             const [hours, minutes] = timeString.split(':').map(Number);
@@ -118,7 +118,7 @@ export const NotificationService = {
      * @param {number} secondsFromNow 
      */
     async scheduleFocusCompletion(sessionTitle, secondsFromNow) {
-        if (!notificationsAvailable || secondsFromNow <= 0) return null;
+        if (!notificationsAvailable || secondsFromNow <= 0) {return null;}
 
         try {
             const identifier = await Notifications.scheduleNotificationAsync({
@@ -145,7 +145,7 @@ export const NotificationService = {
      * @param {string} sessionTitle 
      */
     async showOngoingFocusNotification(sessionTitle) {
-        if (!notificationsAvailable) return null;
+        if (!notificationsAvailable) {return null;}
         try {
             const identifier = await Notifications.scheduleNotificationAsync({
                 content: {
@@ -169,7 +169,7 @@ export const NotificationService = {
      * @param {string} identifier 
      */
     async dismissFocusNotification(identifier) {
-        if (!notificationsAvailable || !identifier) return;
+        if (!notificationsAvailable || !identifier) {return;}
         try {
             await Notifications.dismissNotificationAsync(identifier);
             await Notifications.cancelScheduledNotificationAsync(identifier);
@@ -183,7 +183,7 @@ export const NotificationService = {
      * @param {string} identifier 
      */
     async cancelNotification(identifier) {
-        if (!notificationsAvailable || !identifier) return;
+        if (!notificationsAvailable || !identifier) {return;}
         try {
             await Notifications.cancelScheduledNotificationAsync(identifier);
         } catch (error) {
@@ -195,7 +195,7 @@ export const NotificationService = {
      * Cancel all scheduled notifications
      */
     async cancelAll() {
-        if (!notificationsAvailable) return;
+        if (!notificationsAvailable) {return;}
         try {
             await Notifications.cancelAllScheduledNotificationsAsync();
         } catch (error) {
@@ -208,7 +208,7 @@ export const NotificationService = {
      * Schedules reminders at 09:00 and 18:00 when habits exist; removes them when no habits exist.
      */
     async syncFixedDailyHabitReminders(hasHabits) {
-        if (!notificationsAvailable) return;
+        if (!notificationsAvailable) {return;}
         try {
             const scheduled = await Notifications.getAllScheduledNotificationsAsync();
             const existingHabitReminderIds = scheduled
@@ -220,7 +220,7 @@ export const NotificationService = {
                 await Notifications.cancelScheduledNotificationAsync(id);
             }
 
-            if (!hasHabits) return;
+            if (!hasHabits) {return;}
 
             for (const slot of DAILY_HABIT_REMINDER_SLOTS) {
                 await Notifications.scheduleNotificationAsync({

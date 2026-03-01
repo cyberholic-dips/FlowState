@@ -12,6 +12,7 @@ import {
     Platform,
     KeyboardAvoidingView,
     Keyboard,
+    ActivityIndicator,
 } from 'react-native';
 import LottieView from '../components/LottieCompat';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,6 +63,7 @@ export default function OnboardingScreen({ navigation }) {
     const [showBirthPicker, setShowBirthPicker] = useState(false);
     const [nameError, setNameError] = useState('');
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const scrollX = useRef(new Animated.Value(0)).current;
     const slidesRef = useRef(null);
@@ -94,31 +96,45 @@ export default function OnboardingScreen({ navigation }) {
             setNameError('Please enter your name.');
             return;
         }
+        if (isSubmitting) {
+            return;
+        }
 
-        const settings = (await storage.getSettings()) || {};
-        const existingUser = settings.user || {};
-        const existingLife = settings[LIFE_SETTINGS_KEY] || {};
-        const normalizedBirthDate = new Date(birthDate).toISOString();
+        setIsSubmitting(true);
+        try {
+            const normalizedBirthDate = new Date(birthDate).toISOString();
 
-        await storage.saveSettings({
-            ...settings,
-            user: {
-                ...existingUser,
-                name: cleanedName,
-                avatarId: existingUser.avatarId || 1,
-                birthDate: normalizedBirthDate,
-            },
-            [LIFE_SETTINGS_KEY]: {
-                ...existingLife,
-                birthDate: normalizedBirthDate,
-                lifeExpectancy: typeof existingLife.lifeExpectancy === 'number' ? existingLife.lifeExpectancy : DEFAULT_LIFE_EXPECTANCY,
-                events: Array.isArray(existingLife.events) ? existingLife.events : [],
-            },
-        });
+            await storage.updateSettings((settings = {}) => {
+                const existingUser = settings.user || {};
+                const existingLife = settings[LIFE_SETTINGS_KEY] || {};
+                return {
+                    ...settings,
+                    user: {
+                        ...existingUser,
+                        name: cleanedName,
+                        avatarId: existingUser.avatarId || 1,
+                        birthDate: normalizedBirthDate,
+                    },
+                    [LIFE_SETTINGS_KEY]: {
+                        ...existingLife,
+                        birthDate: normalizedBirthDate,
+                        lifeExpectancy: typeof existingLife.lifeExpectancy === 'number' ? existingLife.lifeExpectancy : DEFAULT_LIFE_EXPECTANCY,
+                        events: Array.isArray(existingLife.events) ? existingLife.events : [],
+                    },
+                };
+            });
 
-        await storage.saveHasCompletedOnboarding(true);
-        await reloadUser();
-        navigation.navigate('MainTabs');
+            await storage.saveHasCompletedOnboarding(true);
+            await reloadUser();
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs' }],
+            });
+        } catch (error) {
+            setNameError('Could not complete setup. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const scrollTo = () => {
@@ -160,7 +176,7 @@ export default function OnboardingScreen({ navigation }) {
                                 value={nameInput}
                                 onChangeText={(value) => {
                                     setNameInput(value);
-                                    if (nameError) setNameError('');
+                                    if (nameError) {setNameError('');}
                                 }}
                                 placeholder="Your name"
                                 placeholderTextColor={theme.subText}
@@ -278,20 +294,31 @@ export default function OnboardingScreen({ navigation }) {
                     <TouchableOpacity
                         style={[
                             styles.button,
-                            { backgroundColor: SLIDES[currentIndex].color }
+                            { backgroundColor: SLIDES[currentIndex].color },
+                            isSubmitting && styles.buttonDisabled,
                         ]}
                         onPress={scrollTo}
                         activeOpacity={0.8}
+                        disabled={isSubmitting}
                     >
-                        <Text style={styles.buttonText}>
-                            {currentIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
-                        </Text>
-                        <Ionicons
-                            name={currentIndex === SLIDES.length - 1 ? 'checkmark' : 'arrow-forward'}
-                            size={20}
-                            color="white"
-                            style={{ marginLeft: 8 }}
-                        />
+                        {isSubmitting ? (
+                            <>
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                                <Text style={[styles.buttonText, styles.buttonTextOffset]}>Saving...</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.buttonText}>
+                                    {currentIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
+                                </Text>
+                                <Ionicons
+                                    name={currentIndex === SLIDES.length - 1 ? 'checkmark' : 'arrow-forward'}
+                                    size={20}
+                                    color="white"
+                                    style={{ marginLeft: 8 }}
+                                />
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -460,5 +487,11 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 18,
         fontWeight: '800',
-    }
+    },
+    buttonTextOffset: {
+        marginLeft: 8,
+    },
+    buttonDisabled: {
+        opacity: 0.8,
+    },
 });

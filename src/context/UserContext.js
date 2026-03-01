@@ -25,7 +25,7 @@ const DEFAULT_AVATAR_ID = 1;
 
 const getAvatarSource = (avatarId) => AVATAR_SOURCES[avatarId] || AVATAR_SOURCES[DEFAULT_AVATAR_ID];
 const normalizeBirthDate = (value) => {
-    if (!value) return null;
+    if (!value) {return null;}
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
@@ -75,16 +75,14 @@ export const UserProvider = ({ children }) => {
         const newData = { ...userData, name };
         setUserData(newData);
 
-        // Persist
-        const settings = await storage.getSettings() || {};
-        await storage.saveSettings({
+        await storage.updateSettings((settings = {}) => ({
             ...settings,
             user: {
-                name: name,
+                name,
                 avatarId: newData.avatarId || DEFAULT_AVATAR_ID,
                 birthDate: normalizeBirthDate(newData.birthDate),
-            }
-        });
+            },
+        }));
     };
 
     const updateAvatar = async (avatarId) => {
@@ -96,15 +94,14 @@ export const UserProvider = ({ children }) => {
         };
         setUserData(newData);
 
-        const settings = await storage.getSettings() || {};
-        await storage.saveSettings({
+        await storage.updateSettings((settings = {}) => ({
             ...settings,
             user: {
                 name: newData.name,
                 avatarId: nextAvatarId,
                 birthDate: normalizeBirthDate(newData.birthDate),
-            }
-        });
+            },
+        }));
     };
 
     const updateBirthDate = async (birthDate) => {
@@ -112,15 +109,14 @@ export const UserProvider = ({ children }) => {
         const newData = { ...userData, birthDate: normalizedBirthDate };
         setUserData(newData);
 
-        const settings = await storage.getSettings() || {};
-        await storage.saveSettings({
+        await storage.updateSettings((settings = {}) => ({
             ...settings,
             user: {
                 name: newData.name,
                 avatarId: newData.avatarId || DEFAULT_AVATAR_ID,
                 birthDate: normalizedBirthDate,
-            }
-        });
+            },
+        }));
     };
 
     return (

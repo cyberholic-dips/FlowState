@@ -119,13 +119,13 @@ export default function StatsScreen() {
 
     const getGitHubHeatColor = useCallback((value) => {
         const count = value?.count || 0;
-        if (count <= 0) return heatmapShades[0];
-        if (heatmapMaxCount <= 1) return heatmapShades[4];
+        if (count <= 0) {return heatmapShades[0];}
+        if (heatmapMaxCount <= 1) {return heatmapShades[4];}
 
         const intensity = count / heatmapMaxCount;
-        if (intensity >= 0.75) return heatmapShades[4];
-        if (intensity >= 0.5) return heatmapShades[3];
-        if (intensity >= 0.25) return heatmapShades[2];
+        if (intensity >= 0.75) {return heatmapShades[4];}
+        if (intensity >= 0.5) {return heatmapShades[3];}
+        if (intensity >= 0.25) {return heatmapShades[2];}
         return heatmapShades[1];
     }, [heatmapMaxCount, heatmapShades]);
 

@@ -3,7 +3,7 @@ import { NativeModules, Platform } from 'react-native';
 const widgetModule = NativeModules.WidgetSyncModule;
 
 export const syncHabitsToWidget = async ({ habits, dateStr }) => {
-    if (Platform.OS !== 'android' || !widgetModule?.updateHabits) return;
+    if (Platform.OS !== 'android' || !widgetModule?.updateHabits) {return;}
 
     try {
         const payload = (Array.isArray(habits) ? habits : []).map((habit) => {

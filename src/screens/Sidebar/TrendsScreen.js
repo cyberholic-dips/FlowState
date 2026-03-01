@@ -124,9 +124,9 @@ export default function TrendsScreen() {
             const cachedRaw = await AsyncStorage.getItem(TRENDS_CACHE_KEY);
             if (cachedRaw) {
                 cached = JSON.parse(cachedRaw);
-                if (Array.isArray(cached.googleTrends)) setGoogleTrends(cached.googleTrends);
-                if (Array.isArray(cached.redditTrends)) setRedditTrends(cached.redditTrends);
-                if (Array.isArray(cached.hackerNewsTrends)) setHackerNewsTrends(cached.hackerNewsTrends);
+                if (Array.isArray(cached.googleTrends)) {setGoogleTrends(cached.googleTrends);}
+                if (Array.isArray(cached.redditTrends)) {setRedditTrends(cached.redditTrends);}
+                if (Array.isArray(cached.hackerNewsTrends)) {setHackerNewsTrends(cached.hackerNewsTrends);}
             }
         } catch (e) {
             cached = null;
@@ -191,7 +191,7 @@ export default function TrendsScreen() {
     }, [loadTrends]);
 
     const openUrl = (url) => {
-        if (!url) return;
+        if (!url) {return;}
         Linking.openURL(url).catch(() => null);
     };
 

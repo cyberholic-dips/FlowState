@@ -21,15 +21,15 @@ export default function App() {
 
     useEffect(() => {
         const handleCompleteHabitUrl = async (url) => {
-            if (!url || !url.startsWith('habittracker://')) return;
+            if (!url || !url.startsWith('habittracker://')) {return;}
             const normalized = url.replace('habittracker://', '');
             const [route, query = ''] = normalized.split('?');
-            if (route !== 'complete-habit') return;
+            if (route !== 'complete-habit') {return;}
 
             const queryPairs = query.split('&').map((part) => part.split('='));
             const rawHabitId = queryPairs.find(([key]) => key === 'habitId')?.[1];
             const habitId = rawHabitId ? decodeURIComponent(rawHabitId) : '';
-            if (!habitId) return;
+            if (!habitId) {return;}
 
             const updatedHabits = await storage.setHabitCompletion(habitId, true);
             const today = new Date().toISOString().split('T')[0];

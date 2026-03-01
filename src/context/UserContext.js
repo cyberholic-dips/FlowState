@@ -24,6 +24,11 @@ const AVATAR_SOURCES = {
 const DEFAULT_AVATAR_ID = 1;
 
 const getAvatarSource = (avatarId) => AVATAR_SOURCES[avatarId] || AVATAR_SOURCES[DEFAULT_AVATAR_ID];
+const normalizeBirthDate = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
 
 export const AVATAR_OPTIONS = Object.keys(AVATAR_SOURCES).map((key) => {
     const id = Number(key);
@@ -35,6 +40,7 @@ export const UserProvider = ({ children }) => {
         name: 'Alex',
         avatarId: DEFAULT_AVATAR_ID,
         profileImage: getAvatarSource(DEFAULT_AVATAR_ID),
+        birthDate: null,
     });
     const [isUserLoading, setIsUserLoading] = useState(true);
     const [userError, setUserError] = useState(null);
@@ -54,6 +60,7 @@ export const UserProvider = ({ children }) => {
                     ...prev,
                     ...settings.user,
                     avatarId,
+                    birthDate: normalizeBirthDate(settings.user.birthDate),
                     profileImage: getAvatarSource(avatarId),
                 }));
             }
@@ -75,6 +82,7 @@ export const UserProvider = ({ children }) => {
             user: {
                 name: name,
                 avatarId: newData.avatarId || DEFAULT_AVATAR_ID,
+                birthDate: normalizeBirthDate(newData.birthDate),
             }
         });
     };
@@ -94,12 +102,29 @@ export const UserProvider = ({ children }) => {
             user: {
                 name: newData.name,
                 avatarId: nextAvatarId,
+                birthDate: normalizeBirthDate(newData.birthDate),
+            }
+        });
+    };
+
+    const updateBirthDate = async (birthDate) => {
+        const normalizedBirthDate = normalizeBirthDate(birthDate);
+        const newData = { ...userData, birthDate: normalizedBirthDate };
+        setUserData(newData);
+
+        const settings = await storage.getSettings() || {};
+        await storage.saveSettings({
+            ...settings,
+            user: {
+                name: newData.name,
+                avatarId: newData.avatarId || DEFAULT_AVATAR_ID,
+                birthDate: normalizedBirthDate,
             }
         });
     };
 
     return (
-        <UserContext.Provider value={{ userData, updateName, updateAvatar, avatarOptions: AVATAR_OPTIONS, isUserLoading, userError, reloadUser: loadUser }}>
+        <UserContext.Provider value={{ userData, updateName, updateAvatar, updateBirthDate, avatarOptions: AVATAR_OPTIONS, isUserLoading, userError, reloadUser: loadUser }}>
             {children}
         </UserContext.Provider>
     );

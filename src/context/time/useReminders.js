@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
+import { NotificationService } from '../../utils/NotificationService';
 
 export function useReminders() {
     const [reminders, setReminders] = useState([]);
@@ -84,20 +85,28 @@ export function useReminders() {
     }, [reminders, isAlarmTriggered, triggerReminder]);
 
     const scheduleNotification = useCallback(async (reminder) => {
-        const [hrs, mins] = reminder.time.split(':').map(Number);
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title: 'FlowState Reminder! 🔔',
-                body: reminder.title ? `Time for: ${reminder.title}` : 'Your scheduled reminder is here!',
-                sound: true,
-                priority: Notifications.AndroidNotificationPriority.MAX,
-            },
-            trigger: {
-                hour: hrs,
-                minute: mins,
-                repeats: reminder.repeats,
-            },
-        });
+        if (!NotificationService.isAvailable()) {
+            return;
+        }
+
+        try {
+            const [hrs, mins] = reminder.time.split(':').map(Number);
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: 'FlowState Reminder! 🔔',
+                    body: reminder.title ? `Time for: ${reminder.title}` : 'Your scheduled reminder is here!',
+                    sound: true,
+                    priority: Notifications.AndroidNotificationPriority.MAX,
+                },
+                trigger: {
+                    hour: hrs,
+                    minute: mins,
+                    repeats: reminder.repeats,
+                },
+            });
+        } catch (error) {
+            // no-op
+        }
     }, []);
 
     const addReminder = useCallback((reminder) => {

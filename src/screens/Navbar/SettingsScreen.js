@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -11,22 +11,46 @@ import {
     KeyboardAvoidingView,
     useWindowDimensions,
     Image,
+    Alert,
+    Modal,
+    Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { storage } from '../../utils/storage';
+
+const getAgeFromBirthDate = (birthDateValue) => {
+    if (!birthDateValue) return null;
+    const birthDate = new Date(birthDateValue);
+    if (Number.isNaN(birthDate.getTime())) return null;
+
+    const now = new Date();
+    let age = now.getFullYear() - birthDate.getFullYear();
+    const monthDelta = now.getMonth() - birthDate.getMonth();
+    if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < birthDate.getDate())) {
+        age -= 1;
+    }
+    return Math.max(0, age);
+};
 
 export default function SettingsScreen() {
     const { theme, isDark, toggleTheme } = useTheme();
-    const { userData, updateName, updateAvatar, avatarOptions } = useUser();
+    const { userData, updateName, updateAvatar, avatarOptions, reloadUser } = useUser();
     const { width } = useWindowDimensions();
 
     const [nameInput, setNameInput] = useState(userData.name);
     const [isEditing, setIsEditing] = useState(false);
     const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isBackupBusy, setIsBackupBusy] = useState(false);
+    const [exportPayload, setExportPayload] = useState('');
+    const [importPayload, setImportPayload] = useState('');
+    const [exportSelection, setExportSelection] = useState({ start: 0, end: 0 });
+    const exportInputRef = useRef(null);
 
-    const isWide = width >= 900;
+    const isWide = width >= 920;
 
     const initials = useMemo(() => {
         const name = userData.name?.trim() || 'User';
@@ -36,6 +60,15 @@ export default function SettingsScreen() {
             .slice(0, 2)
             .map((part) => part[0]?.toUpperCase() || '')
             .join('');
+    }, [userData.name]);
+
+    const ageLabel = useMemo(() => {
+        const age = getAgeFromBirthDate(userData.birthDate);
+        return age === null ? 'Not set' : `${age}`;
+    }, [userData.birthDate]);
+
+    useEffect(() => {
+        setNameInput(userData.name || '');
     }, [userData.name]);
 
     const handleSaveName = () => {
@@ -50,174 +83,307 @@ export default function SettingsScreen() {
         setIsEditing(false);
     };
 
+    const handleOpenExport = async () => {
+        try {
+            setIsBackupBusy(true);
+            const payload = await storage.exportBackup();
+            setExportPayload(payload);
+            setExportSelection({ start: 0, end: 0 });
+            setIsExportModalOpen(true);
+        } catch (error) {
+            Alert.alert('Export failed', 'Could not generate backup data.');
+        } finally {
+            setIsBackupBusy(false);
+        }
+    };
+
+    const handleImport = async () => {
+        if (!importPayload.trim()) {
+            Alert.alert('Import failed', 'Paste backup JSON first.');
+            return;
+        }
+
+        try {
+            setIsBackupBusy(true);
+            await storage.importBackup(importPayload);
+            await reloadUser();
+            setIsImportModalOpen(false);
+            setImportPayload('');
+            Alert.alert('Import complete', 'Data restored. Close and reopen the app to refresh all screens.');
+        } catch (error) {
+            Alert.alert('Import failed', 'Backup format is invalid or unsupported.');
+        } finally {
+            setIsBackupBusy(false);
+        }
+    };
+
+    const handlePrepareCopy = () => {
+        if (!exportPayload) return;
+        const end = exportPayload.length;
+        setExportSelection({ start: 0, end });
+        requestAnimationFrame(() => {
+            exportInputRef.current?.focus();
+        });
+        Alert.alert('Copy ready', 'Backup text selected. Use your keyboard/context menu and tap Copy.');
+    };
+
+    const handleOpenDeveloperProfile = async () => {
+        const url = 'https://x.com/Xurde5Odyssey';
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+            Linking.openURL(url);
+            return;
+        }
+        Alert.alert('Unable to open link', url);
+    };
+
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
-            <LinearGradient
-                colors={isDark ? ['#0B1220', theme.background] : ['#EEF4FF', theme.background]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 0.38 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-            />
-
             <ScrollView contentContainerStyle={[styles.content, isWide && styles.contentWide]} showsVerticalScrollIndicator={false}>
-                <View style={[styles.header, isWide && styles.headerWide]}>
-                    <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-                    <Text style={[styles.subtitle, { color: theme.subText }]}>Manage profile, appearance, and app preferences.</Text>
+                <View style={styles.headerArea}>
+                    <Text style={[styles.title, { color: theme.text }]}>Manage Account</Text>
+                    <Text style={[styles.subtitle, { color: theme.subText }]}>App</Text>
                 </View>
 
-                <View
-                    style={[
-                        styles.heroCard,
-                        {
-                            backgroundColor: theme.card,
-                            borderColor: theme.glassBorder,
-                            shadowColor: theme.mode === 'dark' ? '#000' : '#64748B',
-                        },
-                    ]}
-                >
-                    <LinearGradient
-                        colors={isDark ? ['#1E293B', '#334155'] : ['#F8FAFF', '#EFF6FF']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFill}
-                    />
-                    <View style={[styles.avatarCircle, { borderColor: theme.glassBorder }]}>
+                <View style={[styles.profileHero, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                    <View style={[styles.profileImageWrap, { borderColor: theme.border, backgroundColor: theme.input }]}> 
                         {userData.profileImage ? (
                             <Image source={userData.profileImage} style={styles.avatarImage} />
                         ) : (
-                            <Text style={styles.avatarText}>{initials || 'U'}</Text>
+                            <Text style={[styles.avatarInitials, { color: theme.text }]}>{initials || 'U'}</Text>
                         )}
                     </View>
-                    <View style={styles.heroTextGroup}>
-                        <Text style={[styles.heroName, { color: theme.text }]}>{userData.name || 'User'}</Text>
-                        <Text style={[styles.heroMeta, { color: theme.subText }]}>Personalized setup</Text>
+                    <View style={styles.profileMetaWrap}>
+                        <Text style={[styles.profileName, { color: theme.text }]} numberOfLines={1}>{userData.name || 'User'}</Text>
+                        <Text style={[styles.profileMeta, { color: theme.subText }]}>Age {ageLabel}</Text>
                     </View>
-                    <View style={[styles.badge, { backgroundColor: theme.primary + '20' }]}>
-                        <Text style={[styles.badgeText, { color: theme.primary }]}>{isDark ? 'Dark' : 'Light'}</Text>
+                    <View style={[styles.modePill, { backgroundColor: theme.input, borderColor: theme.border }]}> 
+                        <Text style={[styles.modePillText, { color: theme.text }]}>{isDark ? 'Dark' : 'Light'}</Text>
                     </View>
                 </View>
 
-                <View style={[styles.sectionsWrap, isWide && styles.sectionsWrapWide]}>
-                    <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                        <Text style={[styles.sectionHeader, { color: theme.subText }]}>PROFILE</Text>
+                <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Profile</Text>
 
-                        <Text style={[styles.label, { color: theme.text }]}>Display Name</Text>
-                        {isEditing ? (
-                            <View style={styles.editRow}>
-                                <TextInput
-                                    style={[styles.input, { color: theme.text, backgroundColor: theme.input, borderColor: theme.border }]}
-                                    value={nameInput}
-                                    onChangeText={setNameInput}
-                                    autoFocus
-                                    onBlur={handleSaveName}
-                                    onSubmitEditing={handleSaveName}
-                                    returnKeyType="done"
-                                />
-                                <TouchableOpacity onPress={handleSaveName} style={[styles.actionIcon, { backgroundColor: theme.success + '20' }]}>
-                                    <Ionicons name="checkmark" size={18} color={theme.success} />
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <View style={styles.valueRow}>
-                                <Text style={[styles.value, { color: theme.text }]}>{userData.name || 'User'}</Text>
-                                <TouchableOpacity onPress={() => setIsEditing(true)} style={[styles.actionIcon, { backgroundColor: theme.primary + '18' }]}>
-                                    <Ionicons name="pencil" size={16} color={theme.primary} />
-                                </TouchableOpacity>
-                            </View>
-                        )}
-
-                        <TouchableOpacity
-                            style={[styles.accordionHeader, { borderColor: theme.border, backgroundColor: theme.input }]}
-                            activeOpacity={0.8}
-                            onPress={() => setIsAvatarPickerOpen((prev) => !prev)}
-                        >
-                            <Text style={[styles.accordionTitle, { color: theme.text }]}>Picture Selection</Text>
-                            <Ionicons
-                                name={isAvatarPickerOpen ? 'chevron-up' : 'chevron-down'}
-                                size={18}
-                                color={theme.subText}
+                    <Text style={[styles.fieldLabel, { color: theme.subText }]}>Display Name</Text>
+                    {isEditing ? (
+                        <View style={styles.editRow}>
+                            <TextInput
+                                style={[styles.input, { color: theme.text, backgroundColor: theme.input, borderColor: theme.border }]}
+                                value={nameInput}
+                                onChangeText={setNameInput}
+                                autoFocus
+                                onBlur={handleSaveName}
+                                onSubmitEditing={handleSaveName}
+                                returnKeyType="done"
                             />
+                            <TouchableOpacity onPress={handleSaveName} style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}>
+                                <Ionicons name="checkmark" size={18} color={theme.primary} />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={[styles.infoRowBox, { backgroundColor: theme.input, borderColor: theme.border }]}>
+                            <Text style={[styles.infoValue, { color: theme.text }]}>{userData.name || 'User'}</Text>
+                            <TouchableOpacity onPress={() => setIsEditing(true)} style={[styles.actionIcon, { backgroundColor: theme.primary + '22' }]}>
+                                <Ionicons name="pencil" size={16} color={theme.primary} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.avatarToggle, { borderColor: theme.border, backgroundColor: theme.input }]}
+                        activeOpacity={0.85}
+                        onPress={() => setIsAvatarPickerOpen((prev) => !prev)}
+                    >
+                        <Text style={[styles.avatarToggleText, { color: theme.text }]}>Choose Avatar</Text>
+                        <Ionicons name={isAvatarPickerOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.subText} />
+                    </TouchableOpacity>
+
+                    {isAvatarPickerOpen ? (
+                        <View style={styles.avatarOptionsGrid}>
+                            {avatarOptions.map((avatar) => {
+                                const isActive = userData.avatarId === avatar.id;
+                                return (
+                                    <TouchableOpacity
+                                        key={avatar.id}
+                                        onPress={() => updateAvatar(avatar.id)}
+                                        activeOpacity={0.8}
+                                        style={[
+                                            styles.avatarOption,
+                                            {
+                                                borderColor: isActive ? theme.primary : theme.border,
+                                                backgroundColor: isActive ? theme.primary + '14' : theme.input,
+                                            },
+                                        ]}
+                                    >
+                                        <Image source={avatar.source} style={styles.avatarOptionImage} />
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    ) : null}
+                </View>
+
+                <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Appearance</Text>
+                    <View style={[styles.infoRowBox, { backgroundColor: theme.input, borderColor: theme.border }]}> 
+                        <View style={styles.settingLeft}>
+                            <View style={[styles.settingIcon, { backgroundColor: theme.background }]}> 
+                                <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={theme.primary} />
+                            </View>
+                            <View>
+                                <Text style={[styles.settingTitle, { color: theme.text }]}>Theme Mode</Text>
+                                <Text style={[styles.settingSub, { color: theme.subText }]}>{isDark ? 'Dark mode enabled' : 'Light mode enabled'}</Text>
+                            </View>
+                        </View>
+                        <Switch
+                            trackColor={{ false: '#94A3B8', true: theme.primary }}
+                            thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : '#F8FAFC'}
+                            ios_backgroundColor="#64748B"
+                            onValueChange={toggleTheme}
+                            value={isDark}
+                        />
+                    </View>
+                </View>
+
+                <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Data Backup</Text>
+                    <Text style={[styles.settingSub, { color: theme.subText, marginBottom: 12 }]}>Export or import your local session data as JSON.</Text>
+
+                    <View style={styles.backupButtonsRow}>
+                        <TouchableOpacity
+                            style={[styles.backupButton, { backgroundColor: theme.input, borderColor: theme.border }]}
+                            onPress={handleOpenExport}
+                            activeOpacity={0.85}
+                            disabled={isBackupBusy}
+                        >
+                            <Ionicons name="download-outline" size={16} color={theme.text} />
+                            <Text style={[styles.backupButtonText, { color: theme.text }]}>Export Session</Text>
                         </TouchableOpacity>
 
-                        {isAvatarPickerOpen ? (
-                            <View style={styles.avatarOptionsGrid}>
-                                {avatarOptions.map((avatar) => {
-                                    const isActive = userData.avatarId === avatar.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={avatar.id}
-                                            onPress={() => updateAvatar(avatar.id)}
-                                            activeOpacity={0.8}
-                                            style={[
-                                                styles.avatarOption,
-                                                {
-                                                    borderColor: isActive ? theme.primary : theme.border,
-                                                    backgroundColor: isActive ? theme.primary + '12' : theme.input,
-                                                },
-                                            ]}
-                                        >
-                                            <Image source={avatar.source} style={styles.avatarOptionImage} />
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        ) : null}
+                        <TouchableOpacity
+                            style={[styles.backupButton, { backgroundColor: theme.input, borderColor: theme.border }]}
+                            onPress={() => setIsImportModalOpen(true)}
+                            activeOpacity={0.85}
+                            disabled={isBackupBusy}
+                        >
+                            <Ionicons name="cloud-upload-outline" size={16} color={theme.text} />
+                            <Text style={[styles.backupButtonText, { color: theme.text }]}>Import Session</Text>
+                        </TouchableOpacity>
                     </View>
+                </View>
 
-                    <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                        <Text style={[styles.sectionHeader, { color: theme.subText }]}>APPEARANCE</Text>
+                <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
 
-                        <View style={styles.settingRow}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.settingIcon, { backgroundColor: theme.input }]}>
-                                    <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={theme.primary} />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingTitle, { color: theme.text }]}>Theme Mode</Text>
-                                    <Text style={[styles.settingSub, { color: theme.subText }]}>{isDark ? 'Dark mode enabled' : 'Light mode enabled'}</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                trackColor={{ false: '#94A3B8', true: theme.primary }}
-                                thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : '#F8FAFC'}
-                                ios_backgroundColor="#64748B"
-                                onValueChange={toggleTheme}
-                                value={isDark}
-                            />
+                    <Text style={[styles.aboutHeading, { color: theme.text }]}>About Flow State</Text>
+                    <Text style={[styles.aboutText, { color: theme.subText }]}>
+                        Flow State is designed to help users build consistency in daily routines and improve life balance.
+                    </Text>
+                    <Text style={[styles.aboutText, { color: theme.subText }]}>
+                        Our app provides a clean way to track habits, review progress, and stay focused through simple daily actions.
+                    </Text>
+
+                    <Text style={[styles.aboutSubheading, { color: theme.text }]}>Key features include:</Text>
+                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Daily habit tracking with quick completion</Text>
+                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Life timeline and milestone exploration</Text>
+                    <Text style={[styles.aboutBullet, { color: theme.subText }]}>• Learning and progress insights across sessions</Text>
+
+                    <Text style={[styles.aboutText, { color: theme.subText, marginTop: 10 }]}>
+                        Our mission is to make habit building simple, realistic, and sustainable for everyone.
+                    </Text>
+                    <Text style={[styles.aboutText, { color: theme.subText }]}>
+                        We continuously improve the app based on user feedback.
+                    </Text>
+
+                    <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
+
+                    <TouchableOpacity style={styles.infoList} onPress={handleOpenDeveloperProfile} activeOpacity={0.75}>
+                        <Text style={[styles.infoLabel, { color: theme.subText }]}>Developer</Text>
+                        <View style={styles.infoLinkWrap}>
+                            <Text style={[styles.infoValue, { color: theme.text }]}>Xurde</Text>
+                            <Ionicons name="open-outline" size={14} color={theme.subText} style={{ marginLeft: 6 }} />
                         </View>
-                    </View>
+                    </TouchableOpacity>
 
-                    <View style={[styles.section, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                        <Text style={[styles.sectionHeader, { color: theme.subText }]}>ABOUT</Text>
+                    <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
 
-                        <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: theme.input }]}>
-                                <Ionicons name="code-slash-outline" size={18} color={theme.primary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.infoLabel, { color: theme.subText }]}>Developed by</Text>
-                                <Text style={[styles.infoValue, { color: theme.text }]}>Xurde</Text>
-                            </View>
-                        </View>
-
-                        <View style={[styles.infoDivider, { backgroundColor: theme.border }]} />
-
-                        <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: theme.input }]}>
-                                <Ionicons name="hardware-chip-outline" size={18} color={theme.primary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.infoLabel, { color: theme.subText }]}>Version</Text>
-                                <Text style={[styles.infoValue, { color: theme.text }]}>1.0.0</Text>
-                            </View>
-                        </View>
+                    <View style={styles.infoList}>
+                        <Text style={[styles.infoLabel, { color: theme.subText }]}>Version</Text>
+                        <Text style={[styles.infoValue, { color: theme.text }]}>1.0.0</Text>
                     </View>
                 </View>
             </ScrollView>
+
+            <Modal
+                visible={isExportModalOpen}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setIsExportModalOpen(false)}
+            >
+                <View style={styles.backupModalOverlay}>
+                    <View style={[styles.backupModalCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                        <View style={styles.backupModalHeader}>
+                            <Text style={[styles.backupModalTitle, { color: theme.text }]}>Export Session JSON</Text>
+                            <TouchableOpacity onPress={() => setIsExportModalOpen(false)}>
+                                <Ionicons name="close" size={20} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <TextInput
+                            ref={exportInputRef}
+                            value={exportPayload}
+                            editable
+                            onChangeText={() => {}}
+                            multiline
+                            selectTextOnFocus
+                            selection={exportSelection}
+                            style={[styles.backupTextArea, { color: theme.text, backgroundColor: theme.input, borderColor: theme.border }]}
+                        />
+                        <TouchableOpacity
+                            style={[styles.modalActionButton, { backgroundColor: theme.primary }]}
+                            onPress={handlePrepareCopy}
+                        >
+                            <Text style={styles.modalActionText}>Copy Backup Text</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                visible={isImportModalOpen}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setIsImportModalOpen(false)}
+            >
+                <View style={styles.backupModalOverlay}>
+                    <View style={[styles.backupModalCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+                        <View style={styles.backupModalHeader}>
+                            <Text style={[styles.backupModalTitle, { color: theme.text }]}>Import Session JSON</Text>
+                            <TouchableOpacity onPress={() => setIsImportModalOpen(false)}>
+                                <Ionicons name="close" size={20} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <TextInput
+                            value={importPayload}
+                            onChangeText={setImportPayload}
+                            multiline
+                            placeholder="Paste exported JSON backup here"
+                            placeholderTextColor={theme.subText}
+                            style={[styles.backupTextArea, { color: theme.text, backgroundColor: theme.input, borderColor: theme.border }]}
+                        />
+                        <TouchableOpacity
+                            style={[styles.modalActionButton, { backgroundColor: theme.primary }, isBackupBusy && styles.modalActionDisabled]}
+                            onPress={handleImport}
+                            disabled={isBackupBusy}
+                        >
+                            <Text style={styles.modalActionText}>{isBackupBusy ? 'Importing...' : 'Restore Backup'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -227,118 +393,102 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     content: {
-        paddingHorizontal: 20,
-        paddingTop: 52,
-        paddingBottom: 36,
+        paddingHorizontal: 18,
+        paddingTop: 50,
+        paddingBottom: 34,
     },
     contentWide: {
-        paddingHorizontal: 28,
-        maxWidth: 980,
-        alignSelf: 'center',
+        maxWidth: 960,
         width: '100%',
+        alignSelf: 'center',
+        paddingHorizontal: 26,
     },
-    header: {
-        marginBottom: 18,
-    },
-    headerWide: {
-        marginBottom: 24,
+    headerArea: {
+        marginBottom: 14,
     },
     title: {
-        fontSize: 34,
+        fontSize: 32,
         fontWeight: '800',
-        letterSpacing: -0.8,
-        marginBottom: 4,
+        letterSpacing: -0.9,
     },
     subtitle: {
-        fontSize: 14,
-        fontWeight: '500',
+        marginTop: 4,
+        fontSize: 13,
+        fontWeight: '700',
+        letterSpacing: 0.3,
     },
-    heroCard: {
-        borderRadius: 24,
+    profileHero: {
         borderWidth: 1,
-        padding: 18,
-        marginBottom: 18,
+        borderRadius: 18,
+        padding: 14,
+        marginBottom: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 18,
-        elevation: 4,
-        overflow: 'hidden',
     },
-    avatarCircle: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+    profileImageWrap: {
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 14,
-        borderWidth: 1,
         overflow: 'hidden',
-        backgroundColor: '#FFFFFF',
     },
     avatarImage: {
         width: '100%',
         height: '100%',
     },
-    avatarText: {
-        color: '#FFFFFF',
+    avatarInitials: {
         fontSize: 18,
         fontWeight: '800',
     },
-    heroTextGroup: {
+    profileMetaWrap: {
         flex: 1,
+        marginLeft: 12,
     },
-    heroName: {
+    profileName: {
         fontSize: 20,
         fontWeight: '800',
-        marginBottom: 2,
+        letterSpacing: -0.4,
     },
-    heroMeta: {
+    profileMeta: {
+        marginTop: 2,
         fontSize: 12,
         fontWeight: '600',
     },
-    badge: {
+    modePill: {
+        borderWidth: 1,
+        borderRadius: 999,
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 12,
     },
-    badgeText: {
+    modePillText: {
         fontSize: 11,
         fontWeight: '800',
-        letterSpacing: 0.2,
         textTransform: 'uppercase',
+        letterSpacing: 0.3,
     },
-    sectionsWrap: {
-        gap: 14,
-    },
-    sectionsWrapWide: {
-        gap: 16,
-    },
-    section: {
-        borderRadius: 20,
+    sectionCard: {
         borderWidth: 1,
-        padding: 16,
+        borderRadius: 18,
+        padding: 14,
+        marginBottom: 12,
     },
-    sectionHeader: {
-        fontSize: 11,
+    sectionTitle: {
+        fontSize: 16,
         fontWeight: '800',
-        letterSpacing: 1.2,
-        marginBottom: 14,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '600',
         marginBottom: 10,
+    },
+    fieldLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 6,
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
     },
     editRow: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    valueRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
     },
     input: {
         flex: 1,
@@ -347,7 +497,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 10,
         fontSize: 15,
-        marginRight: 10,
+        marginRight: 8,
     },
     actionIcon: {
         width: 34,
@@ -356,29 +506,34 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    value: {
-        fontSize: 16,
-        fontWeight: '600',
+    infoRowBox: {
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    avatarToggle: {
+        marginTop: 10,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    avatarToggleText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     avatarOptionsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
         marginTop: 10,
-    },
-    accordionHeader: {
-        marginTop: 16,
-        borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    accordionTitle: {
-        fontSize: 14,
-        fontWeight: '700',
     },
     avatarOption: {
         width: 46,
@@ -392,12 +547,6 @@ const styles = StyleSheet.create({
     avatarOptionImage: {
         width: '100%',
         height: '100%',
-    },
-    settingRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 12,
     },
     settingLeft: {
         flexDirection: 'row',
@@ -421,29 +570,115 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginTop: 1,
     },
-    infoRow: {
+    backupButtonsRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    backupButton: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    backupButtonText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    infoList: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    infoLinkWrap: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    infoIcon: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
-    },
     infoLabel: {
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     infoValue: {
         fontSize: 15,
         fontWeight: '700',
-        marginTop: 1,
     },
     infoDivider: {
         height: 1,
-        marginVertical: 14,
+        marginVertical: 12,
+    },
+    aboutHeading: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 8,
+    },
+    aboutSubheading: {
+        marginTop: 10,
+        marginBottom: 6,
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    aboutText: {
+        fontSize: 13,
+        lineHeight: 19,
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    aboutBullet: {
+        fontSize: 13,
+        lineHeight: 19,
+        fontWeight: '600',
+        marginBottom: 2,
+    },
+    backupModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        justifyContent: 'flex-end',
+    },
+    backupModalCard: {
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        borderWidth: 1,
+        paddingHorizontal: 16,
+        paddingTop: 14,
+        paddingBottom: 20,
+        minHeight: '58%',
+    },
+    backupModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    backupModalTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    backupTextArea: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10,
+        textAlignVertical: 'top',
+        fontSize: 12,
+        lineHeight: 18,
+        minHeight: 220,
+    },
+    modalActionButton: {
+        marginTop: 12,
+        borderRadius: 12,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    modalActionDisabled: {
+        opacity: 0.6,
+    },
+    modalActionText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
     },
 });

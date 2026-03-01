@@ -13,8 +13,6 @@ export default function FocusPanel() {
         stopFocus,
         resetFocus,
         setFocusTitle,
-        isWhiteNoiseEnabled,
-        toggleWhiteNoise
     } = useTime();
     const { theme } = useTheme();
 
@@ -41,20 +39,13 @@ export default function FocusPanel() {
 
     return (
         <View style={[styles.panel, { backgroundColor: theme.glassBackground, borderColor: theme.glassBorder }]}>
-            <View style={[styles.header, { justifyContent: 'space-between' }]}>
+            <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={[styles.iconBox, { backgroundColor: theme.primary + '15' }]}>
                         <Ionicons name="stopwatch-outline" size={24} color={theme.primary} />
                     </View>
                     <Text style={[styles.title, { color: theme.text }]}>Focus Session</Text>
                 </View>
-                <TouchableOpacity onPress={toggleWhiteNoise} style={{ padding: 8 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons
-                        name={isWhiteNoiseEnabled ? "headset" : "headset-outline"}
-                        size={22}
-                        color={isWhiteNoiseEnabled ? theme.primary : theme.subText}
-                    />
-                </TouchableOpacity>
             </View>
 
             <TextInput
@@ -99,7 +90,7 @@ export default function FocusPanel() {
                             style={[styles.presetItem, { backgroundColor: focusTarget === mins ? theme.primary : theme.input }]}
                             onPress={() => {
                                 setFocusTarget(mins);
-                                if (!focusTitle) setFocusTitle(`${mins}m Deep Work`);
+                                setFocusTitle(`${mins}m Deep Work`);
                             }}
                         >
                             <Text style={[styles.presetText, { color: focusTarget === mins ? 'white' : theme.subText }]}>{mins}m</Text>

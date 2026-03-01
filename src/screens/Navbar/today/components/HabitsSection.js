@@ -1,7 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import LottieView from 'lottie-react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import * as Haptics from 'expo-haptics';
 
@@ -17,9 +16,11 @@ export default function HabitsSection({
     onToggleHabit,
     onEditHabit,
     onDeleteHabit,
-    onOpenOptions,
     onOpenHabitModal,
+    onAddHabitTemplate,
 }) {
+    const quickTemplates = ['Read 10 Pages', 'Run 5 km', 'Meditate 10 min'];
+
     const triggerTapFeedback = () => {
         Haptics.selectionAsync().catch(() => null);
     };
@@ -95,12 +96,6 @@ export default function HabitsSection({
 
             {!loadingHabits && !habitsError && habits.length === 0 && (
                 <View style={[styles.emptyStateContainer, { borderColor: theme.border, borderWidth: 1, backgroundColor: theme.glassBackground }]}>
-                    <LottieView
-                        source={{ uri: 'https://lottie.host/b008d5cd-078e-4f32-8df7-cdb1e7f6075c/s1iXoQvSNo.json' }}
-                        autoPlay
-                        loop
-                        style={{ width: 180, height: 180 }}
-                    />
                     <Text style={[styles.emptyStateTitle, { color: theme.text }]}>Start Your Journey</Text>
                     <Text style={[styles.emptyStateSubtext, { color: theme.subText }]}>Build habits to shape your future self</Text>
                     <TouchableOpacity
@@ -112,6 +107,23 @@ export default function HabitsSection({
                     >
                         <Text style={styles.emptyStateButtonText}>Create First Habit</Text>
                     </TouchableOpacity>
+
+                    <View style={styles.quickHabitRow}>
+                        {quickTemplates.map((template) => (
+                            <TouchableOpacity
+                                key={template}
+                                style={[styles.quickHabitButton, { borderColor: theme.border, backgroundColor: theme.input }]}
+                                activeOpacity={0.85}
+                                onPress={() => {
+                                    triggerTapFeedback();
+                                    onAddHabitTemplate?.(template);
+                                }}
+                            >
+                                <Text style={[styles.quickHabitText, { color: theme.text }]}>{template}</Text>
+                                <Ionicons name="add-circle-outline" size={17} color={theme.primary} />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
             )}
 
@@ -149,14 +161,6 @@ export default function HabitsSection({
                                 </Text>
                             </View>
                         </View>
-                        <TouchableOpacity
-                            style={styles.menuButton}
-                            onPress={() => onOpenOptions(habit)}
-                            onPressIn={triggerTapFeedback}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                            <Ionicons name="ellipsis-vertical" size={18} color={theme.subText} />
-                        </TouchableOpacity>
                     </TouchableOpacity>
                 </Swipeable>
             ))}

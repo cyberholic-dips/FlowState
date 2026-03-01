@@ -30,7 +30,7 @@ export const TimeProvider = ({ children }) => {
 
     // Initial permission request
     useEffect(() => {
-        NotificationService.requestPermissions();
+        NotificationService.requestPermissions().catch(() => null);
     }, []);
 
     return (

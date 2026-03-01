@@ -14,6 +14,12 @@ const formatDate = (date) => {
     const day = getOrdinalNum(date.getDate());
     return `${month} ${day}`;
 };
+const getTimeGreeting = (date) => {
+    const hour = date.getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+};
 
 export default function TodayHeaderSection({
     styles,
@@ -25,7 +31,7 @@ export default function TodayHeaderSection({
     quoteError,
     weekDays,
     onOpenSidebar,
-    onOpenHabitModal,
+    onOpenSettings,
     onRetryQuote,
 }) {
     const triggerTapFeedback = () => {
@@ -36,11 +42,28 @@ export default function TodayHeaderSection({
         <>
             <View style={styles.topAnchorContainer}>
                 <TouchableOpacity
-                    style={[styles.todayAnchor, { backgroundColor: theme.card, shadowColor: theme.shadow }]}
+                    style={[styles.menuButton, { backgroundColor: theme.card, shadowColor: theme.shadow }]}
                     onPress={onOpenSidebar}
                     onPressIn={triggerTapFeedback}
                     activeOpacity={0.8}
                 >
+                    <View style={styles.menuGlyph}>
+                        <View style={[styles.menuBar, { backgroundColor: theme.text }]} />
+                        <View style={[styles.menuBar, styles.menuBarMiddle, { backgroundColor: theme.text }]} />
+                        <View style={[styles.menuBar, styles.menuBarShort, { backgroundColor: theme.text }]} />
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.todayAnchor, { backgroundColor: theme.card, shadowColor: theme.shadow }]}
+                    onPress={onOpenSettings}
+                    onPressIn={triggerTapFeedback}
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.todayProfileText}>
+                        <Text style={[styles.dateLabel, { color: theme.text }]}>Today</Text>
+                        <Text style={[styles.dayLabel, { color: theme.subText }]}>{formatDate(today)}</Text>
+                    </View>
                     <View style={styles.profileSection}>
                         <View style={[styles.avatar, { borderColor: theme.border, borderWidth: 1 }]}>
                             {userData.profileImage ? (
@@ -49,26 +72,20 @@ export default function TodayHeaderSection({
                                 <Ionicons name="person" size={20} color={theme.primary} />
                             )}
                         </View>
-                        <View>
-                            <Text style={[styles.dateLabel, { color: theme.text }]}>Today</Text>
-                            <Text style={[styles.dayLabel, { color: theme.subText }]}>{formatDate(today)}</Text>
-                        </View>
                     </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: theme.primary }]}
-                    onPress={onOpenHabitModal}
-                    onPressIn={triggerTapFeedback}
-                    activeOpacity={0.8}
-                >
-                    <Ionicons name="add" size={26} color="white" />
                 </TouchableOpacity>
             </View>
 
             <View style={styles.greetingContainer}>
-                <Text style={[styles.greeting, { color: theme.text }]}>Hello, {userData.name ? userData.name.split(' ')[0] : 'there'}</Text>
-                <Text style={[styles.subGreeting, { color: theme.subText }]}>Here's what's happening today.</Text>
+                <Text style={[styles.greetingEyebrow, { color: theme.subText }]}>
+                    {getTimeGreeting(today)}
+                </Text>
+                <Text style={[styles.greetingName, { color: theme.text }]}>
+                    {userData.name ? userData.name.split(' ')[0] : 'there'}
+                </Text>
+                <Text style={[styles.greetingSupport, { color: theme.subText }]}>
+                    Let's make today meaningful.
+                </Text>
             </View>
 
             <View style={styles.quoteContainer}>
